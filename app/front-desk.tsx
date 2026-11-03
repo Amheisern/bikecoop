@@ -5,6 +5,9 @@ import { FlagPill } from './flag-pill'
 import { CheckInForm } from './people/checkin-form'
 import { PeopleSearch } from './people/people-search'
 import { TodayRoster } from './today-roster'
+import { ExpectedTonight, type ExpectedRow } from './expected-tonight'
+import { getExpectedVolunteers, getShiftRole, getSignupsForDate, upcomingShiftDates } from '@/lib/shifts'
+import { todayISO } from '@/lib/dates'
 
 export type FrontDeskTab = 'volunteers' | 'guests'
 
@@ -93,7 +96,10 @@ export function FrontDesk({ tab, query }: { tab: FrontDeskTab; query: string }) 
           )}
         </section>
 
-        <TodayRoster tab={tab} people={roster} />
+        <div className="shift-side">
+          {isVolunteers && <TonightSignups />}
+          <TodayRoster tab={tab} people={roster} />
+        </div>
       </div>
     </main>
   )
@@ -106,4 +112,22 @@ function hereTodayLabel(visit: CheckedInPerson | undefined, isVolunteersTab: boo
   const volunteering = visit.is_volunteer_visit === 1
   if (volunteering === isVolunteersTab) return 'Checked in'
   return volunteering ? 'Checked in as a volunteer' : 'Checked in as a guest'
+}
+
+// "Signed up for tonight" on the Volunteers tab. Hidden on nights that aren't
+// shift nights, unless someone is signed up anyway.
+function TonightSignups() {
+  const today = todayISO()
+  const signedUpCount = new Set(getSignupsForDate(today).map((signup) => signup.person_id)).size
+  const isShiftNight = upcomingShiftDates(today)[0] === today
+  if (!isShiftNight && signedUpCount === 0) return null
+
+  const rows: ExpectedRow[] = getExpectedVolunteers(today).map((entry) => ({
+    personId: entry.person_id,
+    name: `${entry.first_name} ${entry.last_name}`,
+    roleLabels: entry.role_ids.map((roleId) => getShiftRole(roleId)?.label ?? roleId),
+    flagLevel: entry.flag_level,
+    checkedInAsGuest: entry.checked_in_as_guest,
+  }))
+  return <ExpectedTonight rows={rows} signedUpCount={signedUpCount} />
 }

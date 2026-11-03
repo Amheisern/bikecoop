@@ -605,6 +605,180 @@ button:disabled {
   stroke-linecap: round;
 }
 
+/* Right column of the front desk: "Signed up for tonight" (Volunteers tab
+   only) above today's check-ins. */
+.shift-side {
+  display: grid;
+  gap: 1.75rem;
+  align-content: start;
+  min-width: 0;
+}
+
+.expected-tonight h2 {
+  margin-bottom: 1rem;
+}
+
+.shift-tile.expected {
+  border-left-color: var(--navy);
+  border-style: dashed;
+  border-left-style: solid;
+}
+
+.expected-roles {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.shift-tile .tile-checkin {
+  font-size: 0.78rem;
+  padding: 0.5rem 0.75rem;
+}
+
+/* Schedule tab */
+.schedule-intro p {
+  margin: 0;
+}
+
+.schedule-week {
+  margin-bottom: 1.75rem;
+}
+
+.schedule-week > h2 {
+  margin-bottom: 0.75rem;
+}
+
+.schedule-nights {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 1rem;
+}
+
+.night-card {
+  display: grid;
+  align-content: start;
+  gap: 0.9rem;
+  min-width: 0;
+  padding: 1rem;
+  background: var(--surface);
+  border: 3px solid var(--foreground);
+  box-shadow: var(--hard-shadow-sm);
+  scroll-margin-top: 1rem;
+}
+
+.night-card.tonight {
+  border-color: var(--accent);
+  box-shadow: 5px 5px 0 var(--accent);
+}
+
+.night-card h3 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tonight-badge {
+  padding: 0.15rem 0.45rem;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.night-role-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.night-role h4 {
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.night-role .role-add {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.72rem;
+  box-shadow: none;
+}
+
+.signup-list {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+  list-style: none;
+}
+
+.signup-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.signup-list li a {
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.signup-list li a:hover {
+  text-decoration: underline;
+}
+
+.signup-list li.needed {
+  color: var(--danger-dark);
+}
+
+.signup-remove {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-width: 2px;
+  background: var(--danger-soft);
+  color: var(--danger-dark);
+  box-shadow: none;
+}
+
+.signup-remove svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.shift-signup-page h1 {
+  margin: 0.75rem 0;
+}
+
+.shift-signup-page .search-box {
+  margin-top: 0.5rem;
+}
+
+@media (pointer: coarse) {
+  .signup-remove {
+    width: 44px;
+    height: 44px;
+  }
+
+  .night-role .role-add,
+  .shift-tile .tile-checkin {
+    min-height: 44px;
+  }
+}
+
 /* Guests tab: adding someone new, when search doesn't find them. */
 .no-match {
   display: grid;
@@ -708,7 +882,8 @@ button:disabled {
   }
 
   .shift-lookup,
-  .shift-roster {
+  .shift-roster,
+  .shift-side {
     min-width: 0;
   }
 }
@@ -788,6 +963,14 @@ button:disabled {
   align-items: center;
   gap: 0.9rem;
   flex-wrap: wrap;
+}
+
+/* Narrow phones: four tabs in one row run together, so use a 2x2 grid. */
+@media (max-width: 420px) {
+  .top-bar .app-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .muted {
