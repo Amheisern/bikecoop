@@ -3,20 +3,25 @@
 import { useActionState } from 'react'
 import { checkInAction } from './actions'
 
+// `volunteer` controls whether the check-in logs a volunteer session:
+// - 'ask': show the "Volunteer session" checkbox (profile page, Volunteer-marked people)
+// - 'yes': always a volunteer session (Volunteers tab)
+// - 'no':  always a plain visit (Guests tab, or anyone not marked Volunteer)
 export function CheckInForm({
   personId,
-  showVolunteerOption,
+  volunteer,
 }: {
   personId: number
-  showVolunteerOption: boolean
+  volunteer: 'ask' | 'yes' | 'no'
 }) {
-  const [celebration, action, pending] = useActionState(checkInAction, null)
+  const [result, action, pending] = useActionState(checkInAction, null)
 
   return (
     <div>
       <form action={action} className="checkin-form">
         <input type="hidden" name="personId" value={personId} />
-        {showVolunteerOption && (
+        {volunteer === 'yes' && <input type="hidden" name="isVolunteer" value="on" />}
+        {volunteer === 'ask' && (
           <label className="checkbox-row">
             <input type="checkbox" name="isVolunteer" />
             Volunteer session
@@ -26,7 +31,8 @@ export function CheckInForm({
           {pending ? 'Checking in…' : 'Check In'}
         </button>
       </form>
-      {celebration && <p className="celebration">{celebration}</p>}
+      {result?.celebration && <p className="celebration">{result.celebration}</p>}
+      {result?.error && <p className="error" role="alert">{result.error}</p>}
     </div>
   )
 }

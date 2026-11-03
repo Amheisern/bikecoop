@@ -516,111 +516,35 @@ button:disabled {
   margin-bottom: 1rem;
 }
 
-.shift-roster-heading {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  column-gap: 1rem;
-  padding-left: calc(0.5rem + 2px);
-}
-
-.shift-roster-heading h2 {
-  flex: none;
-  margin-bottom: 0;
-}
-
-.shift-tile-groups {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.8rem;
-}
-
-.shift-tile-group h3 {
-  margin-bottom: 0.6rem;
-}
-
 .shift-tiles {
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
   gap: 0.6rem;
   list-style: none;
 }
 
+/* Colored left edge tells the two tabs' tiles apart at a glance. */
 .shift-tile {
-  --shift-tile-padding: 0.7rem;
-  position: relative;
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  gap: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
   min-width: 0;
   background: var(--surface);
   border: 2px solid var(--foreground);
+  border-left-width: 10px;
   box-shadow: var(--hard-shadow-sm);
-  padding: var(--shift-tile-padding);
+  padding: 0.7rem;
   font-weight: 700;
 }
 
-.shift-tile-grip {
-  position: relative;
-  grid-column: 1;
-  grid-row: 1;
-  align-self: stretch;
-  width: 18px;
-  min-height: 44px;
-  margin: calc(-1 * var(--shift-tile-padding)) 0
-    calc(-1 * var(--shift-tile-padding)) calc(-1 * var(--shift-tile-padding));
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background-color: var(--accent);
-  box-shadow: none;
-  cursor: grab;
-  touch-action: none;
+.shift-tile.volunteer {
+  border-left-color: var(--accent);
 }
 
-.shift-tile-grip::before {
-  position: absolute;
-  top: 50%;
-  left: 5px;
-  width: 10px;
-  height: 28px;
-  transform: translateY(-50%);
-  background-image: radial-gradient(circle, var(--foreground) 1.5px, transparent 1.7px);
-  background-size: 5px 6px;
-  content: "";
-  pointer-events: none;
-}
-
-.shift-tile-grip:hover,
-.shift-tile-grip:active {
-  transform: none;
-  box-shadow: none;
-}
-
-.shift-tile-grip:hover::before,
-.shift-tile-grip:active::before {
-  background-image: radial-gradient(circle, var(--navy) 1.5px, transparent 1.7px);
-}
-
-.shift-tile.volunteer .shift-tile-grip {
-  background-color: var(--accent);
-}
-
-.shift-tile.visitor .shift-tile-grip {
-  background-color: var(--yellow);
-}
-
-.shift-tile-grip:active {
-  cursor: grabbing;
-}
-
-/* Visitors not marked Volunteer can't be moved to the volunteer column. */
-.shift-tile.visitor .shift-tile-grip:disabled {
-  background-color: var(--surface-alt);
-  cursor: not-allowed;
-}
-
-.shift-tile-grip:disabled::before {
-  opacity: 0.35;
+.shift-tile.guest {
+  border-left-color: var(--yellow);
 }
 
 .shift-tile-name {
@@ -629,11 +553,7 @@ button:disabled {
   align-items: flex-start;
   gap: 0.3rem;
   min-width: 0;
-}
-
-.shift-tile.selected {
-  outline: 4px solid var(--navy);
-  outline-offset: 2px;
+  flex: 1 1 8rem;
 }
 
 .shift-tile a {
@@ -647,27 +567,21 @@ button:disabled {
   text-decoration: underline;
 }
 
-.shift-tile-heading {
-  grid-column: 2;
-  grid-row: 1;
+.shift-tile-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 0.5rem;
-  min-width: 0;
+  flex: none;
 }
 
-.shift-tile-heading button:not(.tile-remove) {
-  flex: none;
-  width: 2rem;
-  height: 2rem;
-  font-size: 1.25rem;
-  line-height: 1;
-  padding: 0;
+.shift-tile .tile-move {
+  font-size: 0.75rem;
+  line-height: 1.2;
+  padding: 0.45rem 0.6rem;
   box-shadow: none;
 }
 
-.shift-tile-heading .tile-remove {
+.shift-tile .tile-remove {
   flex: none;
   width: 2rem;
   height: 2rem;
@@ -675,13 +589,13 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.25rem;
-  line-height: 1;
   padding: 0;
   box-shadow: none;
+  background: var(--danger-soft);
+  color: var(--danger-dark);
 }
 
-.shift-tile-heading .tile-remove svg {
+.shift-tile .tile-remove svg {
   display: block;
   width: 14px;
   height: 14px;
@@ -691,29 +605,12 @@ button:disabled {
   stroke-linecap: round;
 }
 
-.shift-tile .tile-remove {
-  background: var(--danger-soft);
-  color: var(--danger-dark);
-}
-
-.volunteer-drop-target,
-.visitor-drop-target {
-  min-height: 7rem;
-  padding: 0.5rem;
-  border: 2px dashed transparent;
-}
-
-.volunteer-drop-target.drag-over,
-.visitor-drop-target.drag-over {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.drop-hint {
-  flex: 1 1 14rem;
-  min-width: 0;
-  margin: 0;
-  font-size: 0.8rem;
+/* "Checked in" note next to a name in front-desk search results. */
+.here-today {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
 }
 
 .shift-dialog-backdrop {
@@ -771,14 +668,6 @@ button:disabled {
     gap: 1.25rem;
   }
 
-  .shift-tile-groups {
-    gap: 0.6rem;
-  }
-
-  .shift-tile {
-    --shift-tile-padding: 0.65rem;
-  }
-
   .checkin-form button,
   .shift-dialog-actions button {
     min-height: 48px;
@@ -809,7 +698,7 @@ button:disabled {
 }
 
 @media (pointer: coarse) {
-  .shift-tile-heading button:not(.tile-remove),
+  .shift-tile .tile-move,
   .checkin-form button,
   .shift-dialog-actions button,
   .top-bar .app-tabs a,
@@ -817,7 +706,7 @@ button:disabled {
     min-height: 48px;
   }
 
-  .shift-tile-heading button:not(.tile-remove) {
+  .shift-tile .tile-remove {
     width: 48px;
     height: 48px;
   }
@@ -838,10 +727,18 @@ button:disabled {
     gap: 0.25rem;
   }
 
+  /* Four tabs have to fit on a phone: tighter type, and the bike badge goes. */
+  .top-bar .app-tabs::before {
+    display: none;
+  }
+
   .top-bar .app-tabs a {
-    flex: 1;
-    padding-right: 0.35rem;
-    padding-left: 0.35rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-right: 0.25rem;
+    padding-left: 0.25rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.02em;
   }
 
   .site-lead-label {
@@ -851,10 +748,6 @@ button:disabled {
 
   .site-lead-label select {
     min-height: 44px;
-  }
-
-  .shift-tile-groups {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .person-row {
