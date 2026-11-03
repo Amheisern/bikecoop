@@ -139,7 +139,9 @@ not bundled into the reward tiers.
 
 ## Explicitly out of scope for v1 (do not build)
 
-- Shift signup, SignUpGenius replacement, Slack integration
+- Shift signup, SignUpGenius replacement, Slack integration. **Update (Nov 2026):**
+  Nick now wants these, in phases planned in `docs/volunteer-shifts-plan.md`.
+  Build only a phase that doc marks approved, and ask its open questions first.
 - The app sending email — with exactly one deliberate post-v1 exception: the
   reviewed, one-click lapsed-member renewal notice (see "Lapsed-member emails"
   below). No other email of any kind; bulk/marketing email stays external via
@@ -224,6 +226,8 @@ is enough for current/lapsed status.
       needs a test run against a real export file).
 - [x] Shift page: front-desk check-in plus today's volunteer/visitor roster
       (first pass contributed by Michael on `michael-updates`).
+- [ ] Volunteers / Guests tabs, then shift schedule, then Slack signup
+      (see `docs/volunteer-shifts-plan.md`).
 - [ ] Go-live: validate the import with the real Freehub CSV, upgrade Render to
       Starter, attach persistent disk at /var/data, set DATABASE_PATH, set up
       off-box database backups.
