@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { todayISO } from '@/lib/dates'
+import type { FlagLevel } from '@/lib/flags'
 
 export type Person = {
   id: number
@@ -27,8 +28,14 @@ export type Visit = {
   person_id: number
   visit_date: string
   is_volunteer: number
+  checked_out: number
   logged_by: string | null
   created_at: string
+}
+
+export type CheckedInPerson = Person & {
+  is_volunteer_visit: number
+  flag_level: FlagLevel | null
 }
 
 export type PersonInput = {
@@ -49,6 +56,10 @@ export type PersonInput = {
   tags: string | null
 }
 
+// Front-desk search keeps the list short. Pages show a "keep typing" hint
+// when a search comes back full, so extra matches are never dropped silently.
+export const SEARCH_LIMIT = 10
+
 export function searchPeople(query: string): Person[] {
   if (!query.trim()) return []
   const term = `%${query.trim()}%`
@@ -56,9 +67,64 @@ export function searchPeople(query: string): Person[] {
     .prepare(
       `SELECT * FROM people
        WHERE (first_name || ' ' || last_name) LIKE ? OR email LIKE ?
-       ORDER BY last_name, first_name LIMIT 50`
+       ORDER BY last_name, first_name LIMIT ?`
     )
-    .all(term, term) as Person[]
+    .all(term, term, SEARCH_LIMIT) as Person[]
+}
+
+export function getPeopleCheckedInToday(): CheckedInPerson[] {
+  return db
+    .prepare(
+      `SELECT people.*, visits.is_volunteer AS is_volunteer_visit,
+         (SELECT flags.level FROM flags
+          WHERE flags.person_id = people.id AND flags.resolved_at IS NULL
+          ORDER BY flags.level = 'banned' DESC
+          LIMIT 1) AS flag_level
+       FROM visits
+       JOIN people ON people.id = visits.person_id
+       WHERE visits.visit_date = ? AND visits.checked_out = 0
+       ORDER BY people.last_name, people.first_name`
+    )
+    .all(todayISO()) as CheckedInPerson[]
+}
+
+// Promote/demote re-stamp logged_by with whoever made the change, matching how
+// a re-check-in already works. With no shift lead selected, the original
+// logged_by is kept rather than erased.
+export function promoteVisitToVolunteer(personId: number, loggedBy: string | null = null): boolean {
+  const result = db
+    .prepare(
+      `UPDATE visits SET is_volunteer = 1, logged_by = COALESCE(?, logged_by)
+       WHERE person_id = ? AND visit_date = ? AND checked_out = 0 AND is_volunteer = 0`
+    )
+    .run(loggedBy, personId, todayISO())
+  return result.changes === 1
+}
+
+export function changeVisitToVisitor(personId: number, loggedBy: string | null = null): boolean {
+  const result = db
+    .prepare(
+      `UPDATE visits SET is_volunteer = 0, logged_by = COALESCE(?, logged_by)
+       WHERE person_id = ? AND visit_date = ? AND checked_out = 0 AND is_volunteer = 1`
+    )
+    .run(loggedBy, personId, todayISO())
+  return result.changes === 1
+}
+
+export function checkOutPersonToday(personId: number): boolean {
+  const result = db
+    .prepare(
+      'UPDATE visits SET checked_out = 1 WHERE person_id = ? AND visit_date = ? AND checked_out = 0'
+    )
+    .run(personId, todayISO())
+  return result.changes === 1
+}
+
+export function deleteVisitToday(personId: number): boolean {
+  const result = db
+    .prepare('DELETE FROM visits WHERE person_id = ? AND visit_date = ? AND checked_out = 0')
+    .run(personId, todayISO())
+  return result.changes === 1
 }
 
 export function getPerson(id: number): Person | undefined {
@@ -133,10 +199,11 @@ export function checkIn(input: { personId: number; isVolunteer: boolean; loggedB
   // MAX() so a plain re-check-in the same evening never downgrades an
   // already-logged volunteer session (which would silently erase 2.5 hours).
   db.prepare(
-    `INSERT INTO visits (person_id, visit_date, is_volunteer, logged_by)
-     VALUES (?, ?, ?, ?)
+    `INSERT INTO visits (person_id, visit_date, is_volunteer, checked_out, logged_by)
+     VALUES (?, ?, ?, 0, ?)
      ON CONFLICT (person_id, visit_date) DO UPDATE SET
        is_volunteer = MAX(is_volunteer, excluded.is_volunteer),
+       checked_out = 0,
        logged_by = excluded.logged_by`
   ).run(input.personId, todayISO(), input.isVolunteer ? 1 : 0, input.loggedBy)
 }

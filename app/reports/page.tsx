@@ -34,10 +34,7 @@ export default async function ReportsPage({
 
   return (
     <main className="dense">
-      <div className="page-header">
-        <h1>Reports</h1>
-      </div>
-
+      <h1 className="visually-hidden">Reports</h1>
       <form method="GET" className="stack" style={{ maxWidth: 400 }}>
         <label>
           Period type

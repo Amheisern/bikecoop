@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS visits (
   person_id INTEGER NOT NULL REFERENCES people (id),
   visit_date TEXT NOT NULL DEFAULT (date('now')),
   is_volunteer INTEGER NOT NULL DEFAULT 0,
+  checked_out INTEGER NOT NULL DEFAULT 0,
   logged_by TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (person_id, visit_date)

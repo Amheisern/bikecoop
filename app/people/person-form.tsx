@@ -77,7 +77,7 @@ export function PersonForm({
       </label>
       <label className="checkbox-row">
         <input type="checkbox" name="isSiteLead" defaultChecked={person?.is_site_lead === 1} />
-        Site lead (appears in the &quot;Working today&quot; dropdown)
+        Shift lead (appears in the &quot;Shift Lead&quot; dropdown)
       </label>
       <label className="checkbox-row">
         <input type="checkbox" name="emailOptOut" defaultChecked={person?.email_opt_out === 1} />

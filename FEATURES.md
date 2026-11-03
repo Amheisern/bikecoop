@@ -1,0 +1,11 @@
+# Features (in no particular order)
+- People should be able to sign up in the slack thread and have it show provisionally on the people display for that day. Then it can be approved by the shop lead when they actually show up. Or they can follow the usual flow.
+- Search on keyup is helpful when you don't know last names for sure.
+- I like that you can set people as volunteers and it defaults to that behavior until you change it in their user settings.
+- volunteer hours should be hyperlinked to visits.
+- Site lead should be shop lead
+- I would eventually like to be able to log into this interface from the regular website.
+- logo should be st pete bike coop logo
+- The Shift tab should handle check-in and show separate volunteer and visitor tiles for people currently in the shop. Tiles should support checking people out or removing their visit, and people should be movable between volunteer and visitor groups with confirmation.
+- People tab should manage the users and their settings
+- There should also be an inventory tab that allows us to track new bikes that get donated and sold.

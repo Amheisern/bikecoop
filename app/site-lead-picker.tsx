@@ -16,13 +16,13 @@ export function SiteLeadPicker({
   return (
     <form ref={formRef} action={setSiteLead}>
       <label className="site-lead-label">
-        Working today:
+        Shift Lead:
         <select
           name="personId"
           defaultValue={currentId ?? ''}
           onChange={() => formRef.current?.requestSubmit()}
         >
-          <option value="">— Select site lead —</option>
+          <option value="">— Select shift lead —</option>
           {siteLeads.map((person) => (
             <option key={person.id} value={person.id}>
               {person.first_name} {person.last_name}

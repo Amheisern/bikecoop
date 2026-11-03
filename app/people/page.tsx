@@ -1,6 +1,6 @@
 import Link from 'next/link'
-import { searchPeople } from '@/lib/people'
-import { CheckInForm } from './checkin-form'
+import { searchPeople, SEARCH_LIMIT } from '@/lib/people'
+import { PeopleSearch } from './people-search'
 
 export default async function PeoplePage({
   searchParams,
@@ -12,23 +12,14 @@ export default async function PeoplePage({
 
   return (
     <main>
+      <h1 className="visually-hidden">People</h1>
       <div className="page-header">
-        <h1>People</h1>
         <Link href="/people/new" className="btn-primary">
           + Add Person
         </Link>
       </div>
 
-      <form method="GET">
-        <input
-          type="search"
-          name="q"
-          defaultValue={q}
-          placeholder="Search by name or email…"
-          className="search-box"
-          autoFocus
-        />
-      </form>
+      <PeopleSearch query={q} path="/people" />
 
       <ul className="person-list">
         {people.map((person) => (
@@ -38,14 +29,23 @@ export default async function PeoplePage({
                 {person.first_name} {person.last_name}
               </Link>
             </span>
-            <CheckInForm personId={person.id} showVolunteerOption={person.is_staff === 1} />
+            <div className="person-actions">
+              <Link href={`/people/${person.id}/edit`} className="btn-secondary">
+                Manage
+              </Link>
+            </div>
           </li>
         ))}
         {people.length === 0 && q.trim() && <p className="muted">No matches.</p>}
         {people.length === 0 && !q.trim() && (
-          <p className="muted">Search for a person by name or email to check them in.</p>
+          <p className="muted">Search for a person by name or email to manage their profile and settings.</p>
         )}
       </ul>
+      {people.length === SEARCH_LIMIT && (
+        <p className="muted search-hint">
+          Showing the first {SEARCH_LIMIT} matches. Keep typing to narrow it down.
+        </p>
+      )}
     </main>
   )
 }

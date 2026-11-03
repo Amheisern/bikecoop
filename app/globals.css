@@ -108,6 +108,16 @@ h3 {
   font-size: 1.05rem;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
 main {
   flex: 1;
   width: 100%;
@@ -335,15 +345,15 @@ button:disabled {
   border-bottom: 5px solid var(--foreground);
 }
 
-.top-bar nav {
+.top-bar .app-tabs {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 0.5rem;
   font-family: var(--font-display);
   font-weight: 700;
 }
 
-.top-bar nav::before {
+.top-bar .app-tabs::before {
   content: "\1F6B2";
   display: inline-flex;
   align-items: center;
@@ -355,20 +365,32 @@ button:disabled {
   border-radius: 50%;
   border: 2px solid var(--foreground);
   font-size: 1rem;
-  margin-right: 0.25rem;
+  margin: 0 0.65rem 0 0;
 }
 
-.top-bar nav a {
+.top-bar .app-tabs a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-size: 0.95rem;
-  padding: 0.3rem 0.1rem;
-  border-bottom: 3px solid transparent;
-  transition: border-color 150ms ease;
+  text-decoration: none;
+  padding: 0.45rem 0.8rem;
+  color: var(--foreground-inverse);
+  border-bottom: 4px solid transparent;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
 }
 
-.top-bar nav a:hover {
-  border-color: var(--yellow);
+.top-bar .app-tabs a:hover {
+  color: var(--yellow);
+  background: rgb(0 0 0 / 10%);
+}
+
+.top-bar .app-tabs a[aria-current="page"] {
+  color: var(--foreground-inverse);
+  border-bottom-color: var(--yellow);
 }
 
 .top-bar .btn-secondary {
@@ -440,6 +462,416 @@ button:disabled {
 .person-row .name a:hover {
   text-decoration: underline;
   color: var(--accent-dark);
+}
+
+.shift-lookup .person-list {
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+}
+
+.shift-lookup .person-row {
+  gap: 0.6rem 0.8rem;
+  padding: 0.65rem 0.85rem;
+  border-left-width: 7px;
+}
+
+.shift-lookup .person-row .name {
+  font-size: 1rem;
+}
+
+.shift-lookup .checkin-form {
+  gap: 0.55rem;
+}
+
+.shift-lookup .checkin-form .checkbox-row {
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.shift-lookup .checkin-form .checkbox-row input {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.shift-lookup .checkin-form button {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.82rem;
+}
+
+.person-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.shift-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.shift-lookup h2,
+.shift-roster h2 {
+  margin-bottom: 1rem;
+}
+
+.shift-roster-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 1rem;
+  padding-left: calc(0.5rem + 2px);
+}
+
+.shift-roster-heading h2 {
+  flex: none;
+  margin-bottom: 0;
+}
+
+.shift-tile-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.shift-tile-group h3 {
+  margin-bottom: 0.6rem;
+}
+
+.shift-tiles {
+  display: grid;
+  gap: 0.6rem;
+  list-style: none;
+}
+
+.shift-tile {
+  --shift-tile-padding: 0.7rem;
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 0.4rem;
+  min-width: 0;
+  background: var(--surface);
+  border: 2px solid var(--foreground);
+  box-shadow: var(--hard-shadow-sm);
+  padding: var(--shift-tile-padding);
+  font-weight: 700;
+}
+
+.shift-tile-grip {
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: stretch;
+  width: 18px;
+  min-height: 44px;
+  margin: calc(-1 * var(--shift-tile-padding)) 0
+    calc(-1 * var(--shift-tile-padding)) calc(-1 * var(--shift-tile-padding));
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: var(--accent);
+  box-shadow: none;
+  cursor: grab;
+  touch-action: none;
+}
+
+.shift-tile-grip::before {
+  position: absolute;
+  top: 50%;
+  left: 5px;
+  width: 10px;
+  height: 28px;
+  transform: translateY(-50%);
+  background-image: radial-gradient(circle, var(--foreground) 1.5px, transparent 1.7px);
+  background-size: 5px 6px;
+  content: "";
+  pointer-events: none;
+}
+
+.shift-tile-grip:hover,
+.shift-tile-grip:active {
+  transform: none;
+  box-shadow: none;
+}
+
+.shift-tile-grip:hover::before,
+.shift-tile-grip:active::before {
+  background-image: radial-gradient(circle, var(--navy) 1.5px, transparent 1.7px);
+}
+
+.shift-tile.volunteer .shift-tile-grip {
+  background-color: var(--accent);
+}
+
+.shift-tile.visitor .shift-tile-grip {
+  background-color: var(--yellow);
+}
+
+.shift-tile-grip:active {
+  cursor: grabbing;
+}
+
+/* Visitors not marked Volunteer can't be moved to the volunteer column. */
+.shift-tile.visitor .shift-tile-grip:disabled {
+  background-color: var(--surface-alt);
+  cursor: not-allowed;
+}
+
+.shift-tile-grip:disabled::before {
+  opacity: 0.35;
+}
+
+.shift-tile-name {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.shift-tile.selected {
+  outline: 4px solid var(--navy);
+  outline-offset: 2px;
+}
+
+.shift-tile a {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.shift-tile a:hover {
+  text-decoration: underline;
+}
+
+.shift-tile-heading {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.shift-tile-heading button:not(.tile-remove) {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 0;
+  box-shadow: none;
+}
+
+.shift-tile-heading .tile-remove {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 0;
+  box-shadow: none;
+}
+
+.shift-tile-heading .tile-remove svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.shift-tile .tile-remove {
+  background: var(--danger-soft);
+  color: var(--danger-dark);
+}
+
+.volunteer-drop-target,
+.visitor-drop-target {
+  min-height: 7rem;
+  padding: 0.5rem;
+  border: 2px dashed transparent;
+}
+
+.volunteer-drop-target.drag-over,
+.visitor-drop-target.drag-over {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.drop-hint {
+  flex: 1 1 14rem;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.shift-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 60%);
+}
+
+.shift-dialog {
+  width: min(100%, 34rem);
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+  border: 3px solid var(--foreground);
+  background: var(--surface);
+  box-shadow: var(--hard-shadow);
+}
+
+.shift-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.shift-dialog-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  padding: 0.65rem 0.8rem;
+}
+
+@media (max-width: 1024px) {
+  main:not(.centered-page) {
+    max-width: 960px;
+    padding: 1.25rem 1.5rem 2rem;
+  }
+
+  .top-bar {
+    padding: 0.85rem 1.25rem;
+    gap: 0.8rem 1.25rem;
+  }
+
+  .top-bar .app-tabs {
+    gap: 0.35rem;
+  }
+
+  .shift-layout {
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    gap: 1.25rem;
+  }
+
+  .shift-tile-groups {
+    gap: 0.6rem;
+  }
+
+  .shift-tile {
+    --shift-tile-padding: 0.65rem;
+  }
+
+  .checkin-form button,
+  .shift-dialog-actions button {
+    min-height: 48px;
+  }
+}
+
+@media (min-width: 1025px) and (max-width: 1300px) {
+  main:not(.centered-page) {
+    max-width: 1220px;
+    padding-right: 1.5rem;
+    padding-left: 1.5rem;
+  }
+
+  .shift-layout {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  }
+}
+
+@media (max-width: 850px) {
+  .shift-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shift-lookup,
+  .shift-roster {
+    min-width: 0;
+  }
+}
+
+@media (pointer: coarse) {
+  .shift-tile-heading button:not(.tile-remove),
+  .checkin-form button,
+  .shift-dialog-actions button,
+  .top-bar .app-tabs a,
+  .site-lead-label select {
+    min-height: 48px;
+  }
+
+  .shift-tile-heading button:not(.tile-remove) {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+@media (max-width: 620px) {
+  main:not(.centered-page) {
+    padding: 1rem 1rem 2rem;
+  }
+
+  .top-bar {
+    align-items: stretch;
+  }
+
+  .top-bar .app-tabs {
+    width: 100%;
+    justify-content: stretch;
+    gap: 0.25rem;
+  }
+
+  .top-bar .app-tabs a {
+    flex: 1;
+    padding-right: 0.35rem;
+    padding-left: 0.35rem;
+  }
+
+  .site-lead-label {
+    flex: 1;
+    flex-wrap: wrap;
+  }
+
+  .site-lead-label select {
+    min-height: 44px;
+  }
+
+  .shift-tile-groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .person-row {
+    padding: 1rem;
+  }
+
+  .checkin-form button {
+    min-height: 48px;
+  }
+
+  .shift-dialog {
+    padding: 1.25rem;
+  }
+
+  .shift-dialog-actions {
+    flex-direction: column;
+  }
 }
 
 .checkin-form {
@@ -575,6 +1007,39 @@ button:disabled {
 
 .flag-banner form {
   margin: 0;
+}
+
+/* Compact flag marker on search results and shift tiles. */
+.flag-pill {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  border: 2px solid var(--foreground);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.flag-pill.banned {
+  background: var(--danger);
+  color: var(--foreground-inverse);
+}
+
+.flag-pill.watch {
+  background: var(--yellow);
+  color: var(--navy-dark);
+}
+
+.shift-tile-name .flag-pill {
+  margin-left: 0;
+}
+
+.search-hint {
+  margin-top: 0.75rem;
 }
 
 .modal-overlay {

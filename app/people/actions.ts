@@ -4,7 +4,16 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { requireAuth } from '@/lib/auth'
 import { getSiteLead } from '@/lib/site-lead'
-import { createPerson, updatePerson, checkIn, getPerson } from '@/lib/people'
+import {
+  createPerson,
+  updatePerson,
+  checkIn,
+  getPerson,
+  promoteVisitToVolunteer,
+  changeVisitToVisitor,
+  checkOutPersonToday,
+  deleteVisitToday,
+} from '@/lib/people'
 import { getVolunteerHours, getCrossedMilestone } from '@/lib/hours'
 import { createFlag, resolveFlag, type FlagLevel } from '@/lib/flags'
 import { createMembership } from '@/lib/memberships'
@@ -84,6 +93,7 @@ export async function checkInAction(
   checkIn({ personId, isVolunteer, loggedBy: siteLead ? `${siteLead.first_name} ${siteLead.last_name}` : null })
 
   revalidatePath('/people')
+  revalidatePath('/shift')
   revalidatePath(`/people/${personId}`)
 
   if (!isVolunteer) return null
@@ -93,6 +103,73 @@ export async function checkInAction(
 
   const person = getPerson(personId)
   return person ? `🎉 ${person.first_name} just passed ${crossed} hours!` : null
+}
+
+function validPersonId(personId: number): boolean {
+  return Number.isInteger(personId) && personId > 0
+}
+
+async function currentShiftLeadName(): Promise<string | null> {
+  const siteLead = await getSiteLead()
+  return siteLead ? `${siteLead.first_name} ${siteLead.last_name}` : null
+}
+
+export async function promoteVisitToVolunteerAction(
+  personId: number
+): Promise<{ error?: string; celebration?: string }> {
+  await requireAuth()
+  if (!validPersonId(personId)) return { error: 'Invalid person.' }
+  const person = getPerson(personId)
+  if (!person) return { error: 'Invalid person.' }
+  // Same rule as the check-in form: only people marked Volunteer on their
+  // profile can log a volunteer session.
+  if (person.is_staff !== 1) {
+    return { error: `Mark ${person.first_name} as a Volunteer on their profile first.` }
+  }
+  const hoursBefore = getVolunteerHours(personId)
+  if (!promoteVisitToVolunteer(personId, await currentShiftLeadName())) {
+    return { error: 'This person is no longer checked in as a visitor.' }
+  }
+
+  revalidatePath('/shift')
+  revalidatePath(`/people/${personId}`)
+  revalidatePath('/reports')
+  const crossed = getCrossedMilestone(hoursBefore, getVolunteerHours(personId))
+  if (crossed) return { celebration: `🎉 ${person.first_name} just passed ${crossed} hours!` }
+  return {}
+}
+
+export async function changeVisitToVisitorAction(personId: number): Promise<string | null> {
+  await requireAuth()
+  if (!validPersonId(personId)) return 'Invalid person.'
+  if (!changeVisitToVisitor(personId, await currentShiftLeadName())) {
+    return 'This person is no longer checked in as a volunteer.'
+  }
+
+  revalidatePath('/shift')
+  revalidatePath(`/people/${personId}`)
+  revalidatePath('/reports')
+  return null
+}
+
+export async function checkOutPersonTodayAction(personId: number): Promise<string | null> {
+  await requireAuth()
+  if (!validPersonId(personId)) return 'Invalid person.'
+  if (!checkOutPersonToday(personId)) return 'This person is no longer checked in.'
+
+  revalidatePath('/shift')
+  return null
+}
+
+export async function deleteVisitTodayAction(personId: number): Promise<string | null> {
+  await requireAuth()
+  if (!validPersonId(personId)) return 'Invalid person.'
+  if (!deleteVisitToday(personId)) return 'This person is no longer checked in.'
+
+  revalidatePath('/shift')
+  revalidatePath(`/people/${personId}`)
+  revalidatePath('/reports')
+  return null
 }
 
 const FLAG_LEVELS: FlagLevel[] = ['banned', 'watch']

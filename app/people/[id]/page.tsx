@@ -64,7 +64,7 @@ export default async function PersonProfilePage({
         {' · '}
         {person.email || 'No email'} · {person.phone || 'No phone'}
         {person.year_of_birth && ` · b. ${person.year_of_birth}`}
-        {person.is_site_lead === 1 && ' · Site lead'}
+        {person.is_site_lead === 1 && ' · Shift lead'}
         {person.email_opt_out === 1 && ' · Opted out of email'}
       </p>
       {address && <p className="muted">{address}</p>}
