@@ -77,6 +77,32 @@ test('searchPeople returns at most 10 matches', () => {
   ])
 })
 
+test('searchPeople volunteersOnly returns only people marked Volunteer', () => {
+  const volunteerId = createPerson(personInput({ firstName: 'TabSearch', lastName: 'Volunteer', isStaff: true }))
+  const guestId = createPerson(personInput({ firstName: 'TabSearch', lastName: 'Guest' }))
+
+  const everyone = searchPeople('TabSearch').map((person) => person.id)
+  assert.ok(everyone.includes(volunteerId))
+  assert.ok(everyone.includes(guestId))
+
+  const volunteersOnly = searchPeople('TabSearch', { volunteersOnly: true }).map((person) => person.id)
+  assert.deepEqual(volunteersOnly, [volunteerId])
+})
+
+test('searchPeople volunteersOnly applies the limit after filtering', () => {
+  // Non-volunteers sort first (last name "A…") and would fill the page if the
+  // filter ran after the limit.
+  for (let index = 0; index < 12; index++) {
+    createPerson(personInput({ firstName: 'LimitFilter', lastName: `A${String(index).padStart(2, '0')}` }))
+  }
+  const volunteerId = createPerson(personInput({ firstName: 'LimitFilter', lastName: 'Zed', isStaff: true }))
+
+  assert.deepEqual(
+    searchPeople('LimitFilter', { volunteersOnly: true }).map((person) => person.id),
+    [volunteerId]
+  )
+})
+
 test('checkIn is one visit per person per day', () => {
   const id = createPerson(personInput())
   checkIn({ personId: id, isVolunteer: false, loggedBy: null })
