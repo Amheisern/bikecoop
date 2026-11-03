@@ -109,13 +109,25 @@ function validPersonId(personId: number): boolean {
   return Number.isInteger(personId) && personId > 0
 }
 
+async function currentShiftLeadName(): Promise<string | null> {
+  const siteLead = await getSiteLead()
+  return siteLead ? `${siteLead.first_name} ${siteLead.last_name}` : null
+}
+
 export async function promoteVisitToVolunteerAction(
   personId: number
 ): Promise<{ error?: string; celebration?: string }> {
   await requireAuth()
   if (!validPersonId(personId)) return { error: 'Invalid person.' }
+  const person = getPerson(personId)
+  if (!person) return { error: 'Invalid person.' }
+  // Same rule as the check-in form: only people marked Volunteer on their
+  // profile can log a volunteer session.
+  if (person.is_staff !== 1) {
+    return { error: `Mark ${person.first_name} as a Volunteer on their profile first.` }
+  }
   const hoursBefore = getVolunteerHours(personId)
-  if (!promoteVisitToVolunteer(personId)) {
+  if (!promoteVisitToVolunteer(personId, await currentShiftLeadName())) {
     return { error: 'This person is no longer checked in as a visitor.' }
   }
 
@@ -123,15 +135,16 @@ export async function promoteVisitToVolunteerAction(
   revalidatePath(`/people/${personId}`)
   revalidatePath('/reports')
   const crossed = getCrossedMilestone(hoursBefore, getVolunteerHours(personId))
-  const person = crossed ? getPerson(personId) : undefined
-  if (crossed && person) return { celebration: `🎉 ${person.first_name} just passed ${crossed} hours!` }
+  if (crossed) return { celebration: `🎉 ${person.first_name} just passed ${crossed} hours!` }
   return {}
 }
 
 export async function changeVisitToVisitorAction(personId: number): Promise<string | null> {
   await requireAuth()
   if (!validPersonId(personId)) return 'Invalid person.'
-  if (!changeVisitToVisitor(personId)) return 'This person is no longer checked in as a volunteer.'
+  if (!changeVisitToVisitor(personId, await currentShiftLeadName())) {
+    return 'This person is no longer checked in as a volunteer.'
+  }
 
   revalidatePath('/shift')
   revalidatePath(`/people/${personId}`)

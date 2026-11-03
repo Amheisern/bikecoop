@@ -613,6 +613,24 @@ button:disabled {
   cursor: grabbing;
 }
 
+/* Visitors not marked Volunteer can't be moved to the volunteer column. */
+.shift-tile.visitor .shift-tile-grip:disabled {
+  background-color: var(--surface-alt);
+  cursor: not-allowed;
+}
+
+.shift-tile-grip:disabled::before {
+  opacity: 0.35;
+}
+
+.shift-tile-name {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
 .shift-tile.selected {
   outline: 4px solid var(--navy);
   outline-offset: 2px;
@@ -989,6 +1007,39 @@ button:disabled {
 
 .flag-banner form {
   margin: 0;
+}
+
+/* Compact flag marker on search results and shift tiles. */
+.flag-pill {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  border: 2px solid var(--foreground);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.flag-pill.banned {
+  background: var(--danger);
+  color: var(--foreground-inverse);
+}
+
+.flag-pill.watch {
+  background: var(--yellow);
+  color: var(--navy-dark);
+}
+
+.shift-tile-name .flag-pill {
+  margin-left: 0;
+}
+
+.search-hint {
+  margin-top: 0.75rem;
 }
 
 .modal-overlay {

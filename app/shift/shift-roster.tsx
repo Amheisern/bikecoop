@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, type DragEvent } from 'react'
 import type { CheckedInPerson } from '@/lib/people'
+import { FlagPill } from '../flag-pill'
 import {
   checkOutPersonTodayAction,
   changeVisitToVisitorAction,
@@ -56,7 +57,8 @@ export function ShiftRoster({ people }: { people: CheckedInPerson[] }) {
     event.preventDefault()
     setDragOverGroup(null)
     const personId = Number(event.dataTransfer.getData('text/person-id'))
-    const person = visitors.find((visitor) => visitor.id === personId)
+    // Only people marked Volunteer on their profile can become volunteers.
+    const person = visitors.find((visitor) => visitor.id === personId && visitor.is_staff === 1)
     if (person) {
       setError(null)
       setDialog({ kind: 'promote', person })
@@ -127,9 +129,12 @@ export function ShiftRoster({ people }: { people: CheckedInPerson[] }) {
                     }}
                   />
                   <div className="shift-tile-heading">
-                    <Link href={`/people/${person.id}`} onClick={(event) => event.stopPropagation()}>
-                      {person.first_name} {person.last_name}
-                    </Link>
+                    <span className="shift-tile-name">
+                      <Link href={`/people/${person.id}`} onClick={(event) => event.stopPropagation()}>
+                        {person.first_name} {person.last_name}
+                      </Link>
+                      {person.flag_level && <FlagPill level={person.flag_level} />}
+                    </span>
                     <button
                       type="button"
                       className="tile-remove"
@@ -163,11 +168,13 @@ export function ShiftRoster({ people }: { people: CheckedInPerson[] }) {
           >
             <h3>Visitors ({visitors.length})</h3>
             <ul className="shift-tiles">
-              {visitors.map((person) => (
+              {visitors.map((person) => {
+                const canVolunteer = person.is_staff === 1
+                return (
                 <li
                   key={person.id}
                   className={`shift-tile visitor${selectedPerson?.id === person.id ? ' selected' : ''}`}
-                  draggable
+                  draggable={canVolunteer}
                   onDragStart={(event) => {
                     event.dataTransfer.setData('text/person-id', String(person.id))
                     event.dataTransfer.effectAllowed = 'move'
@@ -176,7 +183,13 @@ export function ShiftRoster({ people }: { people: CheckedInPerson[] }) {
                   <button
                     type="button"
                     className="shift-tile-grip"
-                    aria-label={`Select ${person.first_name} ${person.last_name} to move to volunteers`}
+                    disabled={!canVolunteer}
+                    title={canVolunteer ? undefined : 'Mark them as a Volunteer on their profile first'}
+                    aria-label={
+                      canVolunteer
+                        ? `Select ${person.first_name} ${person.last_name} to move to volunteers`
+                        : `${person.first_name} ${person.last_name} isn't marked Volunteer, so can't be moved to volunteers`
+                    }
                     aria-pressed={selectedPerson?.id === person.id}
                     onClick={(event) => {
                       event.stopPropagation()
@@ -184,9 +197,12 @@ export function ShiftRoster({ people }: { people: CheckedInPerson[] }) {
                     }}
                   />
                   <div className="shift-tile-heading">
-                    <Link href={`/people/${person.id}`} onClick={(event) => event.stopPropagation()}>
-                      {person.first_name} {person.last_name}
-                    </Link>
+                    <span className="shift-tile-name">
+                      <Link href={`/people/${person.id}`} onClick={(event) => event.stopPropagation()}>
+                        {person.first_name} {person.last_name}
+                      </Link>
+                      {person.flag_level && <FlagPill level={person.flag_level} />}
+                    </span>
                     <button
                       type="button"
                       className="tile-remove"
@@ -203,7 +219,8 @@ export function ShiftRoster({ people }: { people: CheckedInPerson[] }) {
                     </button>
                   </div>
                 </li>
-              ))}
+                )
+              })}
               {visitors.length === 0 && <li className="muted">None checked in</li>}
             </ul>
           </section>

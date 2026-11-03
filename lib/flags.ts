@@ -18,6 +18,20 @@ export function getActiveFlags(personId: number): Flag[] {
     .all(personId) as Flag[]
 }
 
+// The most serious active flag on a person (banned outranks watch), or null.
+// Used for the compact flag marker on front-desk search results and tiles.
+export function getTopFlagLevel(personId: number): FlagLevel | null {
+  const row = db
+    .prepare(
+      `SELECT level FROM flags
+       WHERE person_id = ? AND resolved_at IS NULL
+       ORDER BY level = 'banned' DESC
+       LIMIT 1`
+    )
+    .get(personId) as { level: FlagLevel } | undefined
+  return row?.level ?? null
+}
+
 export function createFlag(input: {
   personId: number
   level: FlagLevel

@@ -14,6 +14,7 @@ import {
   getVisitsForPerson,
   type PersonInput,
 } from '../lib/people'
+import { createFlag, resolveFlag, getTopFlagLevel } from '../lib/flags'
 import { addDaysISO, todayISO } from '../lib/dates'
 
 function personInput(overrides: Partial<PersonInput> = {}): PersonInput {
@@ -111,6 +112,46 @@ test('promoting a checked-in visitor records volunteer status only once', () => 
   assert.equal(promoteVisitToVolunteer(personId), true)
   assert.equal(promoteVisitToVolunteer(personId), false)
   assert.equal(getPeopleCheckedInToday().find((person) => person.id === personId)?.is_volunteer_visit, 1)
+})
+
+test('promote and demote stamp the shift lead, keeping the original when none is selected', () => {
+  const personId = createPerson(personInput())
+  checkIn({ personId, isVolunteer: false, loggedBy: 'Front Desk' })
+
+  assert.equal(promoteVisitToVolunteer(personId), true)
+  assert.equal(getVisitsForPerson(personId)[0].logged_by, 'Front Desk')
+
+  assert.equal(changeVisitToVisitor(personId, 'Lead Two'), true)
+  assert.equal(getVisitsForPerson(personId)[0].logged_by, 'Lead Two')
+
+  assert.equal(promoteVisitToVolunteer(personId, 'Lead Three'), true)
+  assert.equal(getVisitsForPerson(personId)[0].logged_by, 'Lead Three')
+})
+
+test('the shift roster and search markers show the most serious active flag', () => {
+  const bannedId = createPerson(personInput({ firstName: 'Flagged', lastName: 'Banned' }))
+  const watchId = createPerson(personInput({ firstName: 'Flagged', lastName: 'Watch' }))
+  const clearedId = createPerson(personInput({ firstName: 'Flagged', lastName: 'Cleared' }))
+  // Watch is created first so the test fails if banned doesn't outrank it.
+  createFlag({ personId: bannedId, level: 'watch', note: 'Watch note', loggedBy: null })
+  createFlag({ personId: bannedId, level: 'banned', note: 'Banned note', loggedBy: null })
+  createFlag({ personId: watchId, level: 'watch', note: 'Watch note', loggedBy: null })
+  createFlag({ personId: clearedId, level: 'banned', note: 'Old ban', loggedBy: null })
+  const clearedFlag = db.prepare('SELECT id FROM flags WHERE person_id = ?').get(clearedId) as { id: number }
+  resolveFlag(clearedFlag.id)
+  for (const personId of [bannedId, watchId, clearedId]) {
+    checkIn({ personId, isVolunteer: false, loggedBy: null })
+  }
+
+  const roster = getPeopleCheckedInToday()
+  const rosterLevel = (id: number) => roster.find((person) => person.id === id)?.flag_level
+  assert.equal(rosterLevel(bannedId), 'banned')
+  assert.equal(rosterLevel(watchId), 'watch')
+  assert.equal(rosterLevel(clearedId), null)
+
+  assert.equal(getTopFlagLevel(bannedId), 'banned')
+  assert.equal(getTopFlagLevel(watchId), 'watch')
+  assert.equal(getTopFlagLevel(clearedId), null)
 })
 
 test('changing a checked-in volunteer to a visitor removes volunteer credit', () => {

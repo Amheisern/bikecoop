@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { searchPeople } from '@/lib/people'
+import { searchPeople, SEARCH_LIMIT } from '@/lib/people'
 import { PeopleSearch } from './people-search'
 
 export default async function PeoplePage({
@@ -41,6 +41,11 @@ export default async function PeoplePage({
           <p className="muted">Search for a person by name or email to manage their profile and settings.</p>
         )}
       </ul>
+      {people.length === SEARCH_LIMIT && (
+        <p className="muted search-hint">
+          Showing the first {SEARCH_LIMIT} matches. Keep typing to narrow it down.
+        </p>
+      )}
     </main>
   )
 }

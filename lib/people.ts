@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { todayISO } from '@/lib/dates'
+import type { FlagLevel } from '@/lib/flags'
 
 export type Person = {
   id: number
@@ -34,6 +35,7 @@ export type Visit = {
 
 export type CheckedInPerson = Person & {
   is_volunteer_visit: number
+  flag_level: FlagLevel | null
 }
 
 export type PersonInput = {
@@ -54,6 +56,10 @@ export type PersonInput = {
   tags: string | null
 }
 
+// Front-desk search keeps the list short. Pages show a "keep typing" hint
+// when a search comes back full, so extra matches are never dropped silently.
+export const SEARCH_LIMIT = 10
+
 export function searchPeople(query: string): Person[] {
   if (!query.trim()) return []
   const term = `%${query.trim()}%`
@@ -61,15 +67,19 @@ export function searchPeople(query: string): Person[] {
     .prepare(
       `SELECT * FROM people
        WHERE (first_name || ' ' || last_name) LIKE ? OR email LIKE ?
-       ORDER BY last_name, first_name LIMIT 10`
+       ORDER BY last_name, first_name LIMIT ?`
     )
-    .all(term, term) as Person[]
+    .all(term, term, SEARCH_LIMIT) as Person[]
 }
 
 export function getPeopleCheckedInToday(): CheckedInPerson[] {
   return db
     .prepare(
-      `SELECT people.*, visits.is_volunteer AS is_volunteer_visit
+      `SELECT people.*, visits.is_volunteer AS is_volunteer_visit,
+         (SELECT flags.level FROM flags
+          WHERE flags.person_id = people.id AND flags.resolved_at IS NULL
+          ORDER BY flags.level = 'banned' DESC
+          LIMIT 1) AS flag_level
        FROM visits
        JOIN people ON people.id = visits.person_id
        WHERE visits.visit_date = ? AND visits.checked_out = 0
@@ -78,21 +88,26 @@ export function getPeopleCheckedInToday(): CheckedInPerson[] {
     .all(todayISO()) as CheckedInPerson[]
 }
 
-export function promoteVisitToVolunteer(personId: number): boolean {
+// Promote/demote re-stamp logged_by with whoever made the change, matching how
+// a re-check-in already works. With no shift lead selected, the original
+// logged_by is kept rather than erased.
+export function promoteVisitToVolunteer(personId: number, loggedBy: string | null = null): boolean {
   const result = db
     .prepare(
-      'UPDATE visits SET is_volunteer = 1 WHERE person_id = ? AND visit_date = ? AND checked_out = 0 AND is_volunteer = 0'
+      `UPDATE visits SET is_volunteer = 1, logged_by = COALESCE(?, logged_by)
+       WHERE person_id = ? AND visit_date = ? AND checked_out = 0 AND is_volunteer = 0`
     )
-    .run(personId, todayISO())
+    .run(loggedBy, personId, todayISO())
   return result.changes === 1
 }
 
-export function changeVisitToVisitor(personId: number): boolean {
+export function changeVisitToVisitor(personId: number, loggedBy: string | null = null): boolean {
   const result = db
     .prepare(
-      'UPDATE visits SET is_volunteer = 0 WHERE person_id = ? AND visit_date = ? AND checked_out = 0 AND is_volunteer = 1'
+      `UPDATE visits SET is_volunteer = 0, logged_by = COALESCE(?, logged_by)
+       WHERE person_id = ? AND visit_date = ? AND checked_out = 0 AND is_volunteer = 1`
     )
-    .run(personId, todayISO())
+    .run(loggedBy, personId, todayISO())
   return result.changes === 1
 }
 

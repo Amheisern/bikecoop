@@ -32,8 +32,9 @@ mirrors those fields and adds the more structured Flags system on top.
   (column name kept as-is internally to avoid colliding with `visits.is_volunteer`,
   which means something different — a specific day's volunteer session) is a general
   designation shown on the profile as **Volunteer** vs Member vs Patron. `is_site_lead`
-  is a narrower subset — only they populate the "Working today" dropdown used for
-  attribution. Most volunteers are **not** site leads. Also carries full mailing
+  is a narrower subset — only they populate the "Shift Lead" dropdown used for
+  attribution. Most volunteers are **not** site leads. (The UI says "Shift lead";
+  code and database keep the `site_lead` name.) Also carries full mailing
   address (`street1`, `street2`, `city`, `state`, `postal_code`, `country`),
   `year_of_birth`, and free-form comma-separated `tags`. `email_opt_out` must be
   respected in any export.
@@ -46,6 +47,8 @@ mirrors those fields and adds the more structured Flags system on top.
   shop is only open 6:00–8:30pm so multiple daily visits are impossible).
   `is_volunteer = 1` means the visit was a volunteer session worth exactly **2.5 hours**.
   Total volunteer hours = count(volunteer visits) × 2.5. Foot traffic = count(all visits).
+  `checked_out = 1` only hides the person from today's Shift roster; the visit (and
+  any volunteer credit) still counts. Re-checking in the same day resets it to 0.
 - **flags** — warnings shown when a person is looked up. Levels: `banned`, `watch`.
   `banned` → blocking modal that must be dismissed before proceeding. `watch` →
   prominent colored banner on the person's record. Flags persist until manually
@@ -67,6 +70,23 @@ from an old one — use `lib/db.ts`'s `runOnce(db, name, fn)`, backed by the
 silently dropped from the site-lead dropdown, since `is_site_lead` defaulted to 0 for
 everyone regardless of their prior `is_staff` value. Any future flag split or similar
 change needs the same treatment — a plain `ensureColumn` is not enough on its own.
+
+## Shift page (front desk)
+
+`/shift` is the home page (`/` redirects there). Tabs: Shift, People, Reports.
+
+- **Check-in search** (left): search-as-you-type, capped at `SEARCH_LIMIT` (10) with a
+  "keep typing" hint when full. The "Volunteer session" checkbox shows only for people
+  marked Volunteer (`is_staff = 1`). Flagged people show a ⛔/⚠️ marker; **banned**
+  people have no Check In button here, only a link to their profile, where the
+  blocking modal must be dismissed first.
+- **Roster** (right): everyone checked in today and not checked out, split into
+  Volunteer and Visitor tiles. Moving a tile between columns (drag, or tap grip then
+  column) changes today's `is_volunteer` after a confirmation; only Volunteer-marked
+  people can move into Volunteers. Promote/demote re-stamp `logged_by` with the
+  current shift lead. Removing a tile offers "Check out, keep visit" (sets
+  `checked_out`) or "Delete visit record" (deletes today's visit row, no trace).
+- The **People** tab is for managing profiles; check-in happens on Shift or a profile.
 
 ## Volunteer milestones / badges
 
@@ -110,7 +130,7 @@ not bundled into the reward tiers.
 
 - One shared username/password for the whole app (simple session cookie is fine).
   This is the only real security boundary.
-- Inside the app, a dropdown of site leads (people where `is_site_lead = 1` — a subset of
+- Inside the app, a "Shift Lead" dropdown of site leads (people where `is_site_lead = 1` — a subset of
   staff, not all of them) selects who is operating the tool. Their name is stamped as
   `logged_by` on every visit, membership, flag, and note. Remember the selection per
   device (cookie). This is attribution, not security — do not build role-based
@@ -202,6 +222,8 @@ is enough for current/lapsed status.
 - [x] Phase 5 — Reports & AI-friendly export.
 - [x] Phase 6 — Freehub CSV import (built from the source-derived format; still
       needs a test run against a real export file).
+- [x] Shift page: front-desk check-in plus today's volunteer/visitor roster
+      (first pass contributed by Michael on `michael-updates`).
 - [ ] Go-live: validate the import with the real Freehub CSV, upgrade Render to
       Starter, attach persistent disk at /var/data, set DATABASE_PATH, set up
       off-box database backups.
