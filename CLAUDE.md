@@ -73,9 +73,10 @@ change needs the same treatment — a plain `ensureColumn` is not enough on its 
 
 ## Front desk: Volunteers and Guests tabs
 
-Tabs: Volunteers, Guests, People, Reports. `/` redirects to **`/guests`** (the home
-tab). `/shift`, the old single front-desk page, redirects to `/guests` so old
-bookmarks still work. Both tabs share one layout (`app/front-desk.tsx`): search on
+Tabs: Volunteers, Guests, Reports. `/` redirects to **`/guests`** (the home tab).
+`/shift` (the old single front-desk page) and `/people` (the old People tab, merged
+into Guests) both redirect to `/guests` so old bookmarks still work. Profiles stay at
+`/people/[id]` and highlight the Guests tab. Both tabs share one layout (`app/front-desk.tsx`): search on
 the left, today's check-ins for that tab on the right (`app/today-roster.tsx`).
 
 - **Volunteers tab** (`/volunteers`): search finds only people marked Volunteer
@@ -83,7 +84,12 @@ the left, today's check-ins for that tab on the right (`app/today-roster.tsx`).
   2.5-hour volunteer session and shows the milestone toast. People not marked
   Volunteer never appear here; they check in on Guests.
 - **Guests tab** (`/guests`): search finds everyone, including volunteers on nights
-  they're just working on their own bike. Check In logs a plain visit.
+  they're just working on their own bike. Check In logs a plain visit. It is also
+  where new people are added: a "Not listed? Add a new person" link always shows
+  (common names always match someone), and a big "+ Add new person" button
+  replaces it when a search finds nobody. The form (`/people/new`) is not
+  prefilled from the search. **Saving it creates the person, checks them in as a
+  guest, and returns to Guests** (`createPersonAction`).
 - Search is capped at `SEARCH_LIMIT` (10) with a "keep typing" hint when full.
   Flagged people show a ⛔/⚠️ marker. **Banned** people (on either tab) have no
   Check In button, only "See why", a link to their profile, where the blocking
@@ -97,8 +103,9 @@ the left, today's check-ins for that tab on the right (`app/today-roster.tsx`).
   today's visit row, no trace).
 - `checkInAction` refuses a volunteer session for anyone not marked Volunteer
   (server-side backstop; the forms already hide the option).
-- The **People** tab is for managing profiles; check-in happens on the front-desk
-  tabs or a profile (which keeps its "Volunteer session" checkbox).
+- Profiles are reached from either tab's search results (name links to the
+  profile, which has Edit). Check-in happens on the front-desk tabs, on a profile
+  (which keeps its "Volunteer session" checkbox), or by adding a new person.
 
 ## Volunteer milestones / badges
 
@@ -238,7 +245,8 @@ is enough for current/lapsed status.
       needs a test run against a real export file).
 - [x] Shift page: front-desk check-in plus today's volunteer/visitor roster
       (first pass contributed by Michael on `michael-updates`).
-- [x] Volunteers / Guests tabs (shift-plan Phase 1; replaced the single Shift page).
+- [x] Volunteers / Guests tabs (shift-plan Phase 1; replaced the single Shift page
+      and merged the People tab into Guests).
 - [ ] Shift schedule, then Slack signup (see `docs/volunteer-shifts-plan.md`).
 - [ ] Go-live: validate the import with the real Freehub CSV, upgrade Render to
       Starter, attach persistent disk at /var/data, set DATABASE_PATH, set up

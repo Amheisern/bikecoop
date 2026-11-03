@@ -21,7 +21,7 @@ before starting any phase.
 
 Goal: replace the single Shift page with two front-desk tabs. No schema change.
 
-- Tabs: Volunteers, Guests, People, Reports.
+- Tabs: Volunteers, Guests, Reports (People merged into Guests; see below).
 - **Volunteers tab:** search only people marked Volunteer. Check In logs a
   volunteer session (2.5 hours) and shows the milestone toast. Below it, the
   volunteers checked in today, with check out / delete visit.
@@ -43,6 +43,11 @@ Answered by Nick (Nov 3, 2026):
 - `/shift`: kept as a redirect to Guests for old bookmarks.
 - A Volunteer-marked person with an active banned flag gets "See why" on the
   Volunteers tab too, same as Guests.
+- Added later the same day: the **People tab merges into Guests**. Guests always
+  shows a "Not listed? Add a new person" link, with a big button when a search
+  finds nobody. The form isn't prefilled from the search. Saving adds the person
+  and checks them in as a guest, then returns to Guests. `/people` redirects to
+  `/guests`. Tabs are now Volunteers, Guests, Reports.
 
 ## Phase 2: weekly schedule with named roles (in-app, not yet approved)
 
