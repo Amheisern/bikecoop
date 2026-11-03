@@ -101,6 +101,25 @@ CREATE TABLE IF NOT EXISTS lapse_emails (
 
 CREATE INDEX IF NOT EXISTS idx_lapse_emails_sent_at ON lapse_emails (sent_at);
 
+-- Volunteer shift signups (docs/volunteer-shifts-plan.md, Phase 2). Shift
+-- nights and roles are code constants (lib/shifts.ts), not tables; shift dates
+-- are computed. One person may hold several roles on a night, but each role
+-- only once. Per-role slot caps (one shift lead) are checked in code.
+-- Signing up never logs hours; only checking in does. A cancel deletes the row.
+-- `source` is 'app' now; Phase 3 (Slack) will add 'slack'.
+CREATE TABLE IF NOT EXISTS shift_signups (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  person_id INTEGER NOT NULL REFERENCES people (id),
+  shift_date TEXT NOT NULL,
+  role_id TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'app',
+  logged_by TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (person_id, shift_date, role_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_shift_signups_date ON shift_signups (shift_date);
+
 -- Tracks one-off data-fix migrations (see lib/db.ts) so they run exactly
 -- once per database, distinct from the schema/column changes above.
 CREATE TABLE IF NOT EXISTS schema_migrations (

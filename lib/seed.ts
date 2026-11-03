@@ -4,6 +4,7 @@ import { createPerson } from '@/lib/people'
 import { createMembership } from '@/lib/memberships'
 import { createFlag } from '@/lib/flags'
 import { createNote } from '@/lib/notes'
+import { signUpForShift, upcomingShiftDates } from '@/lib/shifts'
 
 // Every sample person is tagged with this so they're easy to find and
 // safely removable as a group via clearSampleData().
@@ -116,6 +117,14 @@ export function seedSampleData(): void {
     tags: `${SAMPLE_TAG}, mechanic`,
   })
   createMembership({ personId: veraId, startDate: isoDaysFromToday(-100), endDate: isoDaysFromToday(265), loggedBy: SEEDED_BY })
+  // Shift signups: lead on the next two shift nights (the first one shows as
+  // "expected" on the Volunteers tab when it's tonight), plus mechanic on the
+  // second night (two roles) and the third.
+  const [firstNight, secondNight, thirdNight] = upcomingShiftDates()
+  signUpForShift({ personId: veraId, shiftDate: firstNight, roleId: 'shift_lead', loggedBy: SEEDED_BY })
+  signUpForShift({ personId: veraId, shiftDate: secondNight, roleId: 'shift_lead', loggedBy: SEEDED_BY })
+  signUpForShift({ personId: veraId, shiftDate: secondNight, roleId: 'mechanic', loggedBy: SEEDED_BY })
+  signUpForShift({ personId: veraId, shiftDate: thirdNight, roleId: 'mechanic', loggedBy: SEEDED_BY })
   ;[-1, -4, -7, -10, -13, -16, -19, -22, -25, -28, -31, -34, -37].forEach((offset) =>
     insertBackdatedVisit(veraId, offset, true)
   )
@@ -158,7 +167,7 @@ export function clearSampleData(): number {
   if (ids.length === 0) return 0
 
   const placeholders = ids.map(() => '?').join(',')
-  for (const table of ['visits', 'memberships', 'flags', 'notes', 'reward_redemptions', 'lapse_emails']) {
+  for (const table of ['visits', 'memberships', 'flags', 'notes', 'reward_redemptions', 'lapse_emails', 'shift_signups']) {
     db.prepare(`DELETE FROM ${table} WHERE person_id IN (${placeholders})`).run(...ids)
   }
   db.prepare(`DELETE FROM people WHERE id IN (${placeholders})`).run(...ids)
