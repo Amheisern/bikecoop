@@ -605,6 +605,22 @@ button:disabled {
   stroke-linecap: round;
 }
 
+/* Guests tab: adding someone new, when search doesn't find them. */
+.no-match {
+  display: grid;
+  justify-items: start;
+  gap: 0.75rem;
+}
+
+.no-match .btn-primary {
+  min-height: 48px;
+}
+
+.add-person-link {
+  margin-top: 1rem;
+  font-weight: 700;
+}
+
 /* "Checked in" note next to a name in front-desk search results. */
 .here-today {
   margin-left: 0.5rem;

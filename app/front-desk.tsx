@@ -13,7 +13,8 @@ export type FrontDeskTab = 'volunteers' | 'guests'
 // - Volunteers: searches only people marked Volunteer; Check In logs a
 //   2.5-hour volunteer session.
 // - Guests: searches everyone (volunteers too, on nights they're just working
-//   on their own bike); Check In logs a plain visit.
+//   on their own bike); Check In logs a plain visit. Also the place to add a
+//   new person (the old People tab was merged in here).
 export function FrontDesk({ tab, query }: { tab: FrontDeskTab; query: string }) {
   const isVolunteers = tab === 'volunteers'
   const path = `/${tab}`
@@ -56,16 +57,19 @@ export function FrontDesk({ tab, query }: { tab: FrontDeskTab; query: string }) 
               )
             })}
             {people.length === 0 && query.trim() && (
-              <p className="muted">
-                {isVolunteers ? (
-                  <>
-                    No volunteers match. Only people marked Volunteer on their profile show here.{' '}
-                    <Link href={`/guests?q=${encodeURIComponent(query.trim())}`}>Search Guests instead</Link>.
-                  </>
-                ) : (
-                  'No matches.'
-                )}
-              </p>
+              isVolunteers ? (
+                <p className="muted">
+                  No volunteers match. Only people marked Volunteer on their profile show here.{' '}
+                  <Link href={`/guests?q=${encodeURIComponent(query.trim())}`}>Search Guests instead</Link>.
+                </p>
+              ) : (
+                <div className="no-match">
+                  <p className="muted">No one matches &ldquo;{query.trim()}&rdquo;.</p>
+                  <Link href="/people/new" className="btn-primary">
+                    + Add new person
+                  </Link>
+                </div>
+              )
             )}
             {people.length === 0 && !query.trim() && (
               <p className="muted">
@@ -78,6 +82,13 @@ export function FrontDesk({ tab, query }: { tab: FrontDeskTab; query: string }) 
           {people.length === SEARCH_LIMIT && (
             <p className="muted search-hint">
               Showing the first {SEARCH_LIMIT} matches. Keep typing to narrow it down.
+            </p>
+          )}
+          {/* Common names always match someone, so adding is never hidden on
+              Guests; the big button above covers the no-match case. */}
+          {!isVolunteers && !(people.length === 0 && query.trim()) && (
+            <p className="add-person-link">
+              Not listed? <Link href="/people/new">Add a new person</Link>
             </p>
           )}
         </section>

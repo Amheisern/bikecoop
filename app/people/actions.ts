@@ -42,6 +42,8 @@ function readPersonForm(formData: FormData) {
   }
 }
 
+// Adding a person happens from the Guests tab (someone new just walked in), so
+// saving also checks them in as a guest and returns to Guests.
 export async function createPersonAction(_prevState: string | undefined, formData: FormData) {
   await requireAuth()
   const input = readPersonForm(formData)
@@ -50,17 +52,18 @@ export async function createPersonAction(_prevState: string | undefined, formDat
   }
   const id = createPerson(input)
 
-  const siteLead = await getSiteLead()
-  const loggedByName = siteLead ? `${siteLead.first_name} ${siteLead.last_name}` : null
+  const loggedByName = await currentShiftLeadName()
 
   if (formData.get('startMembership') === 'on') {
     const start = todayISO()
     createMembership({ personId: id, startDate: start, endDate: oneYearFrom(start), loggedBy: loggedByName })
   }
 
-  revalidatePath('/people')
+  checkIn({ personId: id, isVolunteer: false, loggedBy: loggedByName })
+
+  revalidateFrontDesk()
   revalidatePath('/reports')
-  redirect(`/people/${id}`)
+  redirect('/guests')
 }
 
 export async function updatePersonAction(
@@ -74,7 +77,7 @@ export async function updatePersonAction(
     return 'First and last name are required.'
   }
   updatePerson(id, input)
-  revalidatePath('/people')
+  revalidateFrontDesk()
   revalidatePath(`/people/${id}`)
   redirect(`/people/${id}`)
 }
@@ -101,7 +104,6 @@ export async function checkInAction(
 
   checkIn({ personId, isVolunteer, loggedBy: siteLead ? `${siteLead.first_name} ${siteLead.last_name}` : null })
 
-  revalidatePath('/people')
   revalidateFrontDesk()
   revalidatePath(`/people/${personId}`)
 
