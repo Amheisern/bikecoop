@@ -1,8 +1,8 @@
 # Volunteer shifts plan
 
-Status (Nov 3, 2026): Nick approved starting with **Phase 1**. Phases 2 and 3 are
-direction, not approved builds. Confirm the open questions with Nick before
-starting any phase.
+Status (Nov 3, 2026): **Phase 1 built** (branch `volunteers-guests-tabs`). Phases 2
+and 3 are direction, not approved builds. Confirm the open questions with Nick
+before starting any phase.
 
 ## Decisions so far (from Nick)
 
@@ -17,7 +17,7 @@ starting any phase.
   cancel).
 - Nick is a Slack workspace admin and can install the app.
 
-## Phase 1: Volunteers and Guests tabs (approved to start)
+## Phase 1: Volunteers and Guests tabs (built)
 
 Goal: replace the single Shift page with two front-desk tabs. No schema change.
 
@@ -34,12 +34,15 @@ Goal: replace the single Shift page with two front-desk tabs. No schema change.
 - Reuse what exists: `searchPeople`, `checkIn`, `getPeopleCheckedInToday`, the
   promote / demote / check-out / delete actions, `FlagPill`, `PeopleSearch`.
 
-Ask Nick before building:
+Answered by Nick (Nov 3, 2026):
 
-- Which tab is the home page (`/` redirect)?
-- Someone not marked Volunteer shows up to help: Guests only, or a "mark as
-  Volunteer" shortcut on the Volunteers tab?
-- Keep `/shift` as a redirect for old bookmarks?
+- Home page (`/` redirect): **Guests**.
+- Someone not marked Volunteer: **Guests only**. Volunteer-marked people show on
+  both tabs and choose per night (e.g. Nick on a night he's working on his own
+  bike checks in as a guest). Everyone else appears only on Guests.
+- `/shift`: kept as a redirect to Guests for old bookmarks.
+- A Volunteer-marked person with an active banned flag gets "See why" on the
+  Volunteers tab too, same as Guests.
 
 ## Phase 2: weekly schedule with named roles (in-app, not yet approved)
 

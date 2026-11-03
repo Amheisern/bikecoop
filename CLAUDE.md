@@ -47,7 +47,7 @@ mirrors those fields and adds the more structured Flags system on top.
   shop is only open 6:00–8:30pm so multiple daily visits are impossible).
   `is_volunteer = 1` means the visit was a volunteer session worth exactly **2.5 hours**.
   Total volunteer hours = count(volunteer visits) × 2.5. Foot traffic = count(all visits).
-  `checked_out = 1` only hides the person from today's Shift roster; the visit (and
+  `checked_out = 1` only hides the person from today's front-desk lists; the visit (and
   any volunteer credit) still counts. Re-checking in the same day resets it to 0.
 - **flags** — warnings shown when a person is looked up. Levels: `banned`, `watch`.
   `banned` → blocking modal that must be dismissed before proceeding. `watch` →
@@ -71,22 +71,34 @@ silently dropped from the site-lead dropdown, since `is_site_lead` defaulted to 
 everyone regardless of their prior `is_staff` value. Any future flag split or similar
 change needs the same treatment — a plain `ensureColumn` is not enough on its own.
 
-## Shift page (front desk)
+## Front desk: Volunteers and Guests tabs
 
-`/shift` is the home page (`/` redirects there). Tabs: Shift, People, Reports.
+Tabs: Volunteers, Guests, People, Reports. `/` redirects to **`/guests`** (the home
+tab). `/shift`, the old single front-desk page, redirects to `/guests` so old
+bookmarks still work. Both tabs share one layout (`app/front-desk.tsx`): search on
+the left, today's check-ins for that tab on the right (`app/today-roster.tsx`).
 
-- **Check-in search** (left): search-as-you-type, capped at `SEARCH_LIMIT` (10) with a
-  "keep typing" hint when full. The "Volunteer session" checkbox shows only for people
-  marked Volunteer (`is_staff = 1`). Flagged people show a ⛔/⚠️ marker; **banned**
-  people have no Check In button here, only a link to their profile, where the
-  blocking modal must be dismissed first.
-- **Roster** (right): everyone checked in today and not checked out, split into
-  Volunteer and Visitor tiles. Moving a tile between columns (drag, or tap grip then
-  column) changes today's `is_volunteer` after a confirmation; only Volunteer-marked
-  people can move into Volunteers. Promote/demote re-stamp `logged_by` with the
-  current shift lead. Removing a tile offers "Check out, keep visit" (sets
-  `checked_out`) or "Delete visit record" (deletes today's visit row, no trace).
-- The **People** tab is for managing profiles; check-in happens on Shift or a profile.
+- **Volunteers tab** (`/volunteers`): search finds only people marked Volunteer
+  (`is_staff = 1`, via `searchPeople(q, { volunteersOnly: true })`). Check In logs a
+  2.5-hour volunteer session and shows the milestone toast. People not marked
+  Volunteer never appear here; they check in on Guests.
+- **Guests tab** (`/guests`): search finds everyone, including volunteers on nights
+  they're just working on their own bike. Check In logs a plain visit.
+- Search is capped at `SEARCH_LIMIT` (10) with a "keep typing" hint when full.
+  Flagged people show a ⛔/⚠️ marker. **Banned** people (on either tab) have no
+  Check In button, only "See why", a link to their profile, where the blocking
+  modal must be dismissed first. Search rows note when someone is already checked
+  in today, and on which tab.
+- **Today's list**: everyone checked in today and not checked out, for that tab.
+  Each tile has a move button with a confirmation: "Move to Guests" (demote) or
+  "Move to Volunteers" (promote; shown only for Volunteer-marked people). Promote/
+  demote re-stamp `logged_by` with the current shift lead. Removing a tile offers
+  "Check out, keep visit" (sets `checked_out`) or "Delete visit record" (deletes
+  today's visit row, no trace).
+- `checkInAction` refuses a volunteer session for anyone not marked Volunteer
+  (server-side backstop; the forms already hide the option).
+- The **People** tab is for managing profiles; check-in happens on the front-desk
+  tabs or a profile (which keeps its "Volunteer session" checkbox).
 
 ## Volunteer milestones / badges
 
@@ -226,8 +238,8 @@ is enough for current/lapsed status.
       needs a test run against a real export file).
 - [x] Shift page: front-desk check-in plus today's volunteer/visitor roster
       (first pass contributed by Michael on `michael-updates`).
-- [ ] Volunteers / Guests tabs, then shift schedule, then Slack signup
-      (see `docs/volunteer-shifts-plan.md`).
+- [x] Volunteers / Guests tabs (shift-plan Phase 1; replaced the single Shift page).
+- [ ] Shift schedule, then Slack signup (see `docs/volunteer-shifts-plan.md`).
 - [ ] Go-live: validate the import with the real Freehub CSV, upgrade Render to
       Starter, attach persistent disk at /var/data, set DATABASE_PATH, set up
       off-box database backups.
