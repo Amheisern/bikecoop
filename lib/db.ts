@@ -59,7 +59,13 @@ function sleepSync(ms: number) {
 }
 
 function createConnection() {
-  const dbPath = process.env.DATABASE_PATH || './bikecoop.db'
+  // `next build` imports every route in several parallel workers to collect
+  // page data. On a fresh checkout (like every Render build) they all try to
+  // create and migrate the same database file at once and the build fails
+  // with SQLITE_BUSY. The build never needs real data (every page renders per
+  // request, behind the login), so build workers get a throwaway in-memory DB.
+  const isBuild = process.env.NEXT_PHASE === 'phase-production-build'
+  const dbPath = isBuild ? ':memory:' : process.env.DATABASE_PATH || './bikecoop.db'
   const db = new Database(dbPath, { timeout: 10000 })
   db.pragma('busy_timeout = 10000')
   db.pragma('journal_mode = WAL')
