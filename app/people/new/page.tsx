@@ -1,11 +1,16 @@
+import Link from 'next/link'
 import { PersonForm } from '../person-form'
 import { createPersonAction } from '../actions'
 
 export default function NewPersonPage() {
   return (
     <main>
-      <h1>Add Person</h1>
-      <PersonForm action={createPersonAction} submitLabel="Add Person" />
+      <h1>Add a new person</h1>
+      <p className="muted">Saving also checks them in as a guest today.</p>
+      <PersonForm action={createPersonAction} submitLabel="Add and check in" />
+      <p>
+        <Link href="/guests">Cancel</Link>
+      </p>
     </main>
   )
 }

@@ -42,6 +42,8 @@ function readPersonForm(formData: FormData) {
   }
 }
 
+// Adding a person happens from the Guests tab (someone new just walked in), so
+// saving also checks them in as a guest and returns to Guests.
 export async function createPersonAction(_prevState: string | undefined, formData: FormData) {
   await requireAuth()
   const input = readPersonForm(formData)
@@ -50,17 +52,18 @@ export async function createPersonAction(_prevState: string | undefined, formDat
   }
   const id = createPerson(input)
 
-  const siteLead = await getSiteLead()
-  const loggedByName = siteLead ? `${siteLead.first_name} ${siteLead.last_name}` : null
+  const loggedByName = await currentShiftLeadName()
 
   if (formData.get('startMembership') === 'on') {
     const start = todayISO()
     createMembership({ personId: id, startDate: start, endDate: oneYearFrom(start), loggedBy: loggedByName })
   }
 
-  revalidatePath('/people')
+  checkIn({ personId: id, isVolunteer: false, loggedBy: loggedByName })
+
+  revalidateFrontDesk()
   revalidatePath('/reports')
-  redirect(`/people/${id}`)
+  redirect('/guests')
 }
 
 export async function updatePersonAction(
@@ -74,26 +77,34 @@ export async function updatePersonAction(
     return 'First and last name are required.'
   }
   updatePerson(id, input)
-  revalidatePath('/people')
+  revalidateFrontDesk()
   revalidatePath(`/people/${id}`)
   redirect(`/people/${id}`)
 }
 
+export type CheckInResult = { error?: string; celebration?: string } | null
+
 export async function checkInAction(
-  _prevState: string | null | undefined,
+  _prevState: CheckInResult | undefined,
   formData: FormData
-): Promise<string | null> {
+): Promise<CheckInResult> {
   await requireAuth()
   const personId = Number(formData.get('personId'))
   const isVolunteer = formData.get('isVolunteer') === 'on'
+  const person = getPerson(personId)
+  if (!person) return { error: 'Invalid person.' }
+  // Only people marked Volunteer on their profile can log a volunteer session.
+  // The forms already hide the option for everyone else; this is the backstop.
+  if (isVolunteer && person.is_staff !== 1) {
+    return { error: `Mark ${person.first_name} as a Volunteer on their profile first.` }
+  }
   const siteLead = await getSiteLead()
 
   const hoursBefore = isVolunteer ? getVolunteerHours(personId) : 0
 
   checkIn({ personId, isVolunteer, loggedBy: siteLead ? `${siteLead.first_name} ${siteLead.last_name}` : null })
 
-  revalidatePath('/people')
-  revalidatePath('/shift')
+  revalidateFrontDesk()
   revalidatePath(`/people/${personId}`)
 
   if (!isVolunteer) return null
@@ -101,8 +112,13 @@ export async function checkInAction(
   const crossed = getCrossedMilestone(hoursBefore, getVolunteerHours(personId))
   if (!crossed) return null
 
-  const person = getPerson(personId)
-  return person ? `🎉 ${person.first_name} just passed ${crossed} hours!` : null
+  return { celebration: `🎉 ${person.first_name} just passed ${crossed} hours!` }
+}
+
+// Both front-desk tabs show today's check-ins, so any change refreshes both.
+function revalidateFrontDesk() {
+  revalidatePath('/guests')
+  revalidatePath('/volunteers')
 }
 
 function validPersonId(personId: number): boolean {
@@ -128,10 +144,10 @@ export async function promoteVisitToVolunteerAction(
   }
   const hoursBefore = getVolunteerHours(personId)
   if (!promoteVisitToVolunteer(personId, await currentShiftLeadName())) {
-    return { error: 'This person is no longer checked in as a visitor.' }
+    return { error: 'This person is no longer checked in as a guest.' }
   }
 
-  revalidatePath('/shift')
+  revalidateFrontDesk()
   revalidatePath(`/people/${personId}`)
   revalidatePath('/reports')
   const crossed = getCrossedMilestone(hoursBefore, getVolunteerHours(personId))
@@ -146,7 +162,7 @@ export async function changeVisitToVisitorAction(personId: number): Promise<stri
     return 'This person is no longer checked in as a volunteer.'
   }
 
-  revalidatePath('/shift')
+  revalidateFrontDesk()
   revalidatePath(`/people/${personId}`)
   revalidatePath('/reports')
   return null
@@ -157,7 +173,7 @@ export async function checkOutPersonTodayAction(personId: number): Promise<strin
   if (!validPersonId(personId)) return 'Invalid person.'
   if (!checkOutPersonToday(personId)) return 'This person is no longer checked in.'
 
-  revalidatePath('/shift')
+  revalidateFrontDesk()
   return null
 }
 
@@ -166,7 +182,7 @@ export async function deleteVisitTodayAction(personId: number): Promise<string |
   if (!validPersonId(personId)) return 'Invalid person.'
   if (!deleteVisitToday(personId)) return 'This person is no longer checked in.'
 
-  revalidatePath('/shift')
+  revalidateFrontDesk()
   revalidatePath(`/people/${personId}`)
   revalidatePath('/reports')
   return null

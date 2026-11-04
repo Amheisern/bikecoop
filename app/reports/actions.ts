@@ -9,7 +9,8 @@ import { sendEmail } from '@/lib/email'
 import { getLapseEmailQueue, renderLapseEmail, recordLapseEmail } from '@/lib/lapse-emails'
 
 function revalidateEverything() {
-  revalidatePath('/people')
+  revalidatePath('/guests')
+  revalidatePath('/volunteers')
   revalidatePath('/reports')
 }
 

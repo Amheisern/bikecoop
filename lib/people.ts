@@ -60,13 +60,17 @@ export type PersonInput = {
 // when a search comes back full, so extra matches are never dropped silently.
 export const SEARCH_LIMIT = 10
 
-export function searchPeople(query: string): Person[] {
+// `volunteersOnly` limits results to people marked Volunteer (`is_staff = 1`),
+// for the Volunteers tab. The limit applies after the filter, so a full page of
+// non-volunteers can't push matching volunteers out of the results.
+export function searchPeople(query: string, options: { volunteersOnly?: boolean } = {}): Person[] {
   if (!query.trim()) return []
   const term = `%${query.trim()}%`
+  const volunteerFilter = options.volunteersOnly ? 'AND is_staff = 1' : ''
   return db
     .prepare(
       `SELECT * FROM people
-       WHERE (first_name || ' ' || last_name) LIKE ? OR email LIKE ?
+       WHERE ((first_name || ' ' || last_name) LIKE ? OR email LIKE ?) ${volunteerFilter}
        ORDER BY last_name, first_name LIMIT ?`
     )
     .all(term, term, SEARCH_LIMIT) as Person[]
