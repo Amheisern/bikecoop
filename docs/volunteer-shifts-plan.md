@@ -1,8 +1,8 @@
 # Volunteer shifts plan
 
-Status (Nov 3, 2026): **Phase 1 built** (branch `volunteers-guests-tabs`). Phases 2
-and 3 are direction, not approved builds. Confirm the open questions with Nick
-before starting any phase.
+Status (Nov 3, 2026): **Phase 1 built** (branch `volunteers-guests-tabs`, PR #4).
+**Phase 2 built** (branch `shift-schedule`, stacked on PR #4). Phase 3 is
+direction, not an approved build. Confirm its open questions with Nick first.
 
 ## Decisions so far (from Nick)
 
@@ -49,7 +49,7 @@ Answered by Nick (Nov 3, 2026):
   and checks them in as a guest, then returns to Guests. `/people` redirects to
   `/guests`. Tabs are now Volunteers, Guests, Reports.
 
-## Phase 2: weekly schedule with named roles (in-app, not yet approved)
+## Phase 2: weekly schedule with named roles (built)
 
 Proposed shape, following existing conventions (code constants over tables, like
 `REWARD_TIERS`):
@@ -57,14 +57,25 @@ Proposed shape, following existing conventions (code constants over tables, like
 - `lib/shifts.ts`: `SHIFT_NIGHTS` (Mon, Tue, Thu) and `SHIFT_ROLES` (shift lead,
   mechanic, greeter, each with a slot count). Shift dates are computed, not stored.
 - New table `shift_signups (id, person_id, shift_date, role_id, source,
-  created_at, UNIQUE(person_id, shift_date))`, with the per-role slot cap checked
-  in code.
+  logged_by, created_at, UNIQUE(person_id, shift_date, role_id))`, with the
+  per-role slot cap checked in code.
 - The Volunteers tab shows tonight's signups as "expected"; one tap checks an
   expected person in. Signing up never logs hours; only check-in does.
 - A schedule view (next 2 to 4 weeks) for signing people up from inside the app.
 
-Open questions: slots per role per night; whether one person can hold two roles
-on a night; how far ahead signups open; how cancellations work.
+Answered by Nick (Nov 3, 2026):
+
+- Slots: **one shift lead** per night; Mechanic and Greeter have **no cap**.
+- One person **can** hold two roles on a night (each role once).
+- Signups open **4 weeks** ahead.
+- Cancelling: **anytime**, the signup just disappears (no record).
+- Shift lead slot: **only people marked Shift lead** (and Volunteer). Other roles:
+  anyone marked Volunteer.
+- The 4-week view is a new **Schedule tab**.
+- Shop closures / holidays: **skip for now**.
+- Not asked, decided in the build: banned volunteers can't be signed up (same
+  "See why" as check-in), and a volunteer who checked in as a guest still shows
+  under "Signed up for tonight" (labeled) until they check in as a volunteer.
 
 ## Phase 3: Slack signup (not yet approved)
 

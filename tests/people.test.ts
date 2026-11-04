@@ -89,6 +89,16 @@ test('searchPeople volunteersOnly returns only people marked Volunteer', () => {
   assert.deepEqual(volunteersOnly, [volunteerId])
 })
 
+test('searchPeople shiftLeadsOnly returns only volunteers marked Shift lead', () => {
+  const leadId = createPerson(personInput({ firstName: 'LeadSearch', lastName: 'Lead', isStaff: true, isSiteLead: true }))
+  createPerson(personInput({ firstName: 'LeadSearch', lastName: 'Volunteer', isStaff: true }))
+  createPerson(personInput({ firstName: 'LeadSearch', lastName: 'Guest' }))
+  assert.deepEqual(
+    searchPeople('LeadSearch', { volunteersOnly: true, shiftLeadsOnly: true }).map((person) => person.id),
+    [leadId]
+  )
+})
+
 test('searchPeople volunteersOnly applies the limit after filtering', () => {
   // Non-volunteers sort first (last name "A…") and would fill the page if the
   // filter ran after the limit.

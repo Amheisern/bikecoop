@@ -19,7 +19,7 @@ abstractions. Prefer the simplest thing that works. It may later be offered to o
   `./bikecoop.db` locally. On Render production it will be `/var/data/bikecoop.db`.
   Never hardcode paths. Never commit the database file (gitignored).
 
-## Domain model (five tables — see db/schema.sql)
+## Domain model (see db/schema.sql)
 
 Person fields and the staff/site-lead split are modeled after the legacy Freehub app
 (github.com/asalant/freehub) — cloned and read directly (schema.rb, Person model, views)
@@ -57,6 +57,8 @@ mirrors those fields and adds the more structured Flags system on top.
 - **notes** — general free-text, timestamped notes on a person (e.g. "great with wheel
   truing, ask him for help"). Distinct from Flags: no levels, no resolution, just a
   running history log. Any volunteer can add one; notes are never edited or deleted.
+- **shift_signups** — who is signed up for which role on which shift night (see
+  "Shift schedule" below). `UNIQUE(person_id, shift_date, role_id)`.
 
 New columns on `people` (`is_site_lead`, address, `year_of_birth`, `tags`) are added to
 already-deployed databases via a small idempotent migration in `lib/db.ts`
@@ -73,7 +75,7 @@ change needs the same treatment — a plain `ensureColumn` is not enough on its 
 
 ## Front desk: Volunteers and Guests tabs
 
-Tabs: Volunteers, Guests, Reports. `/` redirects to **`/guests`** (the home tab).
+Tabs: Volunteers, Guests, Schedule, Reports. `/` redirects to **`/guests`** (the home tab).
 `/shift` (the old single front-desk page) and `/people` (the old People tab, merged
 into Guests) both redirect to `/guests` so old bookmarks still work. Profiles stay at
 `/people/[id]` and highlight the Guests tab. Both tabs share one layout (`app/front-desk.tsx`): search on
@@ -82,7 +84,10 @@ the left, today's check-ins for that tab on the right (`app/today-roster.tsx`).
 - **Volunteers tab** (`/volunteers`): search finds only people marked Volunteer
   (`is_staff = 1`, via `searchPeople(q, { volunteersOnly: true })`). Check In logs a
   2.5-hour volunteer session and shows the milestone toast. People not marked
-  Volunteer never appear here; they check in on Guests.
+  Volunteer never appear here; they check in on Guests. Above today's list,
+  **Signed up for tonight** (`app/expected-tonight.tsx`) shows tonight's signups
+  who haven't checked in as a volunteer yet, with their roles and a one-tap Check
+  In (banned: "See why"). It's hidden on non-shift nights with no signups.
 - **Guests tab** (`/guests`): search finds everyone, including volunteers on nights
   they're just working on their own bike. Check In logs a plain visit. It is also
   where new people are added: a "Not listed? Add a new person" link always shows
@@ -106,6 +111,27 @@ the left, today's check-ins for that tab on the right (`app/today-roster.tsx`).
 - Profiles are reached from either tab's search results (name links to the
   profile, which has Edit). Check-in happens on the front-desk tabs, on a profile
   (which keeps its "Volunteer session" checkbox), or by adding a new person.
+
+## Shift schedule (shift-plan Phase 2)
+
+`/schedule` lists every shift night for the next `SIGNUP_WEEKS_AHEAD` (4) weeks,
+grouped by week, with each role's signups. Nights and roles are code constants in
+`lib/shifts.ts` (like `REWARD_TIERS`); shift dates are computed, never stored.
+
+- `SHIFT_NIGHTS`: Mon, Tue, Thu, 6:00 to 8:30pm. No closures/holidays yet (Nick:
+  skip for now); every shift night always shows.
+- `SHIFT_ROLES`: **Shift lead** (max 1 per night, only people marked Shift lead),
+  **Mechanic** and **Greeter / front desk** (no cap). Every role needs Volunteer.
+- One person can hold several roles on a night, each role once.
+- "+ Add" on a role opens `/schedule/[date]/[role]`: search (filtered to who can
+  take that role), then Sign up. `signUpForShift()` enforces every rule (open date,
+  Volunteer, Shift lead, not banned, not a duplicate, slot cap) in one transaction;
+  it's the one entry point Phase 3 (Slack, `source = 'slack'`) should reuse.
+- ✕ on a signup cancels it: the row is deleted, no record kept.
+- Signing up never logs hours; only checking in does. `logged_by` is the shift
+  lead who made the signup.
+- A shift lead signs volunteers up; volunteers can't sign themselves up until
+  Phase 3 (no member login, by design).
 
 ## Volunteer milestones / badges
 
@@ -247,7 +273,9 @@ is enough for current/lapsed status.
       (first pass contributed by Michael on `michael-updates`).
 - [x] Volunteers / Guests tabs (shift-plan Phase 1; replaced the single Shift page
       and merged the People tab into Guests).
-- [ ] Shift schedule, then Slack signup (see `docs/volunteer-shifts-plan.md`).
+- [x] Shift schedule (shift-plan Phase 2): Schedule tab, signups, "Signed up for
+      tonight" on Volunteers.
+- [ ] Slack signup (shift-plan Phase 3, see `docs/volunteer-shifts-plan.md`).
 - [ ] Go-live: validate the import with the real Freehub CSV, upgrade Render to
       Starter, attach persistent disk at /var/data, set DATABASE_PATH, set up
       off-box database backups.

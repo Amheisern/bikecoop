@@ -61,16 +61,24 @@ export type PersonInput = {
 export const SEARCH_LIMIT = 10
 
 // `volunteersOnly` limits results to people marked Volunteer (`is_staff = 1`),
-// for the Volunteers tab. The limit applies after the filter, so a full page of
-// non-volunteers can't push matching volunteers out of the results.
-export function searchPeople(query: string, options: { volunteersOnly?: boolean } = {}): Person[] {
+// for the Volunteers tab; `shiftLeadsOnly` further limits to people marked
+// Shift lead (`is_site_lead = 1`), for signing up a shift's lead. The limit
+// applies after the filters, so a full page of non-matching people can't push
+// matching ones out of the results.
+export function searchPeople(
+  query: string,
+  options: { volunteersOnly?: boolean; shiftLeadsOnly?: boolean } = {}
+): Person[] {
   if (!query.trim()) return []
   const term = `%${query.trim()}%`
-  const volunteerFilter = options.volunteersOnly ? 'AND is_staff = 1' : ''
+  const filters = [
+    options.volunteersOnly ? 'AND is_staff = 1' : '',
+    options.shiftLeadsOnly ? 'AND is_site_lead = 1' : '',
+  ].join(' ')
   return db
     .prepare(
       `SELECT * FROM people
-       WHERE ((first_name || ' ' || last_name) LIKE ? OR email LIKE ?) ${volunteerFilter}
+       WHERE ((first_name || ' ' || last_name) LIKE ? OR email LIKE ?) ${filters}
        ORDER BY last_name, first_name LIMIT ?`
     )
     .all(term, term, SEARCH_LIMIT) as Person[]
