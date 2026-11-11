@@ -903,3 +903,29 @@ milestone toast, move/check out, Signed up for tonight, add person, all
 redirects, profile, schedule, reports, CSV/JSON export, and no sideways scroll
 at 390px and 320px. Not yet run against a real Turso database (needs Nick's
 account); first check after setup: `/api/health`, then log in and load a page.
+
+## Slack shift signup (shift-plan Phase 3) (complete, pending Slack setup)
+
+**Date:** 2026-11-11
+
+Nick's decisions: automatic weekly posts, one message per night, a new
+#shift-signups channel, a private reply when a tapper can't be matched.
+
+- `lib/slack.ts`: signature check, per-night Block Kit message, weekly posting
+  (`slack_posts` claims each night so it's posted once), tap handling (match by
+  Slack email, sign up through `signUpForShift()` or cancel if already signed
+  up, redraw the message, private reply).
+- Routes: `GET /api/slack/post-shifts` (weekly cron), `POST
+  /api/slack/interactions` (taps; answers at once, works in `after()`).
+- Schedule page signups and cancels redraw the Slack post.
+- `docs/slack-app-manifest.yml`: the Slack app to create.
+
+### Verified
+
+`npm test` 75/75 (10 new Slack tests with a fake Slack), `tsc --noEmit`,
+`npm run lint` (2 existing warnings), `npm run build`. End to end against a
+local fake Slack: weekly post (3 nights, second run posts nothing), a signed tap
+answers in 6ms then signs up, redraws and replies privately; a second tap
+cancels; unknown emails get the see-a-shift-lead reply; bad and old signatures
+get 401; Schedule page signup and cancel redraw the Slack post. Not yet run
+against real Slack (needs the app installed).

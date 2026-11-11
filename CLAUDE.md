@@ -158,6 +158,39 @@ grouped by week, with each role's signups. Nights and roles are code constants i
   Phase 3 (no member login, by design).
 - Tonight's signups show as "Signed up for tonight" on the Check In page.
 
+## Slack signup (shift-plan Phase 3)
+
+Volunteers sign themselves up in Slack (`lib/slack.ts`). Decisions (Nick, Nov
+11): automatic weekly posts, **one message per night**, a new **#shift-signups**
+channel, and a private reply when someone can't be matched.
+
+- **Weekly post:** cron-job.org calls `GET /api/slack/post-shifts` every Sunday
+  at 4 PM. It posts each shift night from today through the next six days (the
+  coming Mon, Tue, Thu) that isn't posted yet. Each night is claimed in
+  `slack_posts` before posting, so repeat calls never double-post; a failed post
+  releases the claim for the next run.
+- **A post:** header with the night, one section per role with who's signed up
+  (first name, last initial, or _open_) and a **Sign up** button
+  (`action_id: toggle_signup`, value `{date, role}`).
+- **A tap** (`POST /api/slack/interactions`): the Slack signature is checked
+  (requests older than 5 minutes are refused), the route answers 200 at once
+  (Slack's 3-second limit), and the work runs in `after()`: look up the
+  tapper's Slack email (`users.info`), match a person by email
+  (case-insensitive), then sign up through `signUpForShift()` (`source =
+  'slack'`, `logged_by = "<name> (Slack)"`) or, if they already have that role
+  that night, cancel. The night's message is redrawn from the database and the
+  tapper gets a private reply. Same rules as the Schedule page; banned people
+  get "Please talk to a shift lead" with no detail.
+- **Two-way sync:** a signup or cancel on the Schedule page redraws that night's
+  Slack message (`refreshNightPost`, after the page responds). Slack failures
+  are logged, never shown to the front desk.
+- Settings (Render): `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`,
+  `SLACK_CHANNEL_ID`. Until all three are set the Slack routes answer 503 and
+  nothing talks to Slack. The Slack app is defined in
+  `docs/slack-app-manifest.yml`. `/api/slack/` is open without a login
+  (proxy.ts); the signature (taps) and idempotency (weekly post) are the guards.
+- Matching needs each volunteer's email in the app to be their Slack email.
+
 ## Volunteer milestones / badges
 
 Computed live from cumulative hours, never stored. Thresholds (hours):
@@ -210,8 +243,8 @@ not bundled into the reward tiers.
 ## Explicitly out of scope for v1 (do not build)
 
 - Shift signup, SignUpGenius replacement, Slack integration. **Update (Nov 2026):**
-  Nick now wants these, in phases planned in `docs/volunteer-shifts-plan.md`.
-  Build only a phase that doc marks approved, and ask its open questions first.
+  Nick now wants these, in phases planned in `docs/volunteer-shifts-plan.md`;
+  all three phases are built (see "Slack signup" above).
 - The app sending email — with exactly one deliberate post-v1 exception: the
   reviewed, one-click lapsed-member renewal notice (see "Lapsed-member emails"
   below). No other email of any kind; bulk/marketing email stays external via
@@ -304,7 +337,9 @@ is enough for current/lapsed status.
       merged back into one page with Guest / Volunteer buttons.
 - [x] Turso database (libSQL) + `/api/health` for the keep-awake ping, so the
       free Render tier keeps data and stays awake.
-- [ ] Slack signup (shift-plan Phase 3, see `docs/volunteer-shifts-plan.md`).
+- [x] Slack signup (shift-plan Phase 3): weekly per-night posts, tap to sign
+      up or cancel, two-way sync with the Schedule page. Needs the Slack app,
+      #shift-signups, the three SLACK_ settings and the weekly cron job.
 - [ ] Go-live: validate the import with the real Freehub CSV, confirm Turso is
       connected on Render (TURSO_DATABASE_URL / TURSO_AUTH_TOKEN) and the
       cron-job.org ping is running, set up off-box backups (e.g. a scheduled

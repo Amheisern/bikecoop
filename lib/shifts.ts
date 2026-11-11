@@ -155,6 +155,10 @@ export async function signUpForShift(input: {
   })
 }
 
+export async function getSignupDate(signupId: number): Promise<string | null> {
+  return (await db.get<{ shift_date: string }>('SELECT shift_date FROM shift_signups WHERE id = ?', signupId))?.shift_date ?? null
+}
+
 export async function cancelSignup(signupId: number): Promise<boolean> {
   return (await db.run('DELETE FROM shift_signups WHERE id = ?', signupId)).changes === 1
 }

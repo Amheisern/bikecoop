@@ -2,9 +2,11 @@
 
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { getSiteLead } from '@/lib/site-lead'
-import { cancelSignup, signUpForShift } from '@/lib/shifts'
+import { cancelSignup, getSignupDate, signUpForShift } from '@/lib/shifts'
+import { refreshNightPost } from '@/lib/slack'
 
 // Tonight's signups show as "Signed up for tonight" on the Check In page too.
 function revalidateSchedule() {
@@ -28,6 +30,8 @@ export async function signUpForShiftAction(
   if (!result.ok) return result.error
 
   revalidateSchedule()
+  // Keep that night's Slack post in step (after the page responds).
+  after(() => refreshNightPost(shiftDate))
   // shiftDate is safe in the URL: signUpForShift only accepts open shift dates.
   redirect(`/schedule#night-${shiftDate}`)
 }
@@ -35,6 +39,9 @@ export async function signUpForShiftAction(
 export async function cancelSignupAction(formData: FormData) {
   await requireAuth()
   const signupId = Number(formData.get('signupId'))
-  if (Number.isInteger(signupId) && signupId > 0) await cancelSignup(signupId)
+  if (Number.isInteger(signupId) && signupId > 0) {
+    const shiftDate = await getSignupDate(signupId)
+    if ((await cancelSignup(signupId)) && shiftDate) after(() => refreshNightPost(shiftDate))
+  }
   revalidateSchedule()
 }
