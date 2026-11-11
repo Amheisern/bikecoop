@@ -83,7 +83,14 @@ Answered by Nick (Nov 3, 2026):
   "See why" as check-in), and a volunteer who checked in as a guest still shows
   under "Signed up for tonight" (labeled) until they check in as a volunteer.
 
-## Phase 3: Slack signup (not yet approved)
+## Phase 3: Slack signup (built Nov 11, 2026)
+
+Decisions (Nick, Nov 11): automatic weekly posts (cron-job.org, Sunday 4 PM),
+one message per night, a new #shift-signups channel, and a private "see a shift
+lead" reply when a tapper can't be matched. Signups made on the Schedule page
+also update the Slack posts. Details in CLAUDE.md, "Slack signup". The notes
+below are the original plan.
+
 
 - A Slack app posts upcoming nights in a channel with one button per open role.
   Tapping signs up, tapping again cancels, and the message updates in place.

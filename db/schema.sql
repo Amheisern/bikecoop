@@ -126,3 +126,14 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
   name TEXT PRIMARY KEY,
   applied_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Slack shift signup (docs/volunteer-shifts-plan.md, Phase 3): the message
+-- posted for each shift night, so taps and Schedule-page changes can redraw
+-- it. A night is claimed here (ts still NULL) before posting, so it is never
+-- posted twice.
+CREATE TABLE IF NOT EXISTS slack_posts (
+  shift_date TEXT PRIMARY KEY,
+  channel TEXT NOT NULL,
+  ts TEXT,
+  posted_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

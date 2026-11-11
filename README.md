@@ -31,6 +31,9 @@ npm run dev
 | `DATABASE_PATH` | Optional. Local SQLite file path; defaults to `./bikecoop.db` |
 | `TURSO_DATABASE_URL` | Production only. The Turso database URL (`libsql://...`). When set, it's used instead of `DATABASE_PATH` |
 | `TURSO_AUTH_TOKEN` | Production only. Turso database token |
+| `SLACK_BOT_TOKEN` | Optional. Slack shift signup: the app's Bot User OAuth Token (`xoxb-...`) |
+| `SLACK_SIGNING_SECRET` | Optional. Slack shift signup: the app's Signing Secret |
+| `SLACK_CHANNEL_ID` | Optional. Slack shift signup: the #shift-signups channel ID (`C...`) |
 | `RESEND_API_KEY` | Optional. Enables real sending of lapsed-member renewal emails; without it, sends are dry-run (logged, not sent) |
 | `EMAIL_FROM` | Sender for renewal emails, e.g. `St. Pete Bike Coop <members@example.org>` (required only with `RESEND_API_KEY`) |
 
