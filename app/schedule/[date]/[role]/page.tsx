@@ -58,15 +58,17 @@ export default async function ShiftSignupPage({
                     </Link>
                     {flagLevel && <FlagPill level={flagLevel} />}
                   </span>
-                  {signedUpIds.has(person.id) ? (
-                    <span className="here-today">Already signed up</span>
-                  ) : flagLevel === 'banned' ? (
-                    <Link href={`/people/${person.id}`} className="btn-secondary">
-                      See why
-                    </Link>
-                  ) : (
-                    <ShiftSignupForm personId={person.id} shiftDate={date} roleId={role.id} />
-                  )}
+                  <div className="row-actions">
+                    {signedUpIds.has(person.id) ? (
+                      <span className="here-today">Already signed up</span>
+                    ) : flagLevel === 'banned' ? (
+                      <Link href={`/people/${person.id}`} className="btn-secondary">
+                        See why
+                      </Link>
+                    ) : (
+                      <ShiftSignupForm personId={person.id} shiftDate={date} roleId={role.id} />
+                    )}
+                  </div>
                 </li>
               )
             })}

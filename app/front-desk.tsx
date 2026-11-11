@@ -1,8 +1,7 @@
 import Link from 'next/link'
-import type { ReactNode } from 'react'
 import { getPeopleCheckedInToday, searchPeople, SEARCH_LIMIT, type CheckedInPerson, type SearchResult } from '@/lib/people'
 import { FlagPill } from './flag-pill'
-import { CheckInForm } from './people/checkin-form'
+import { FrontDeskCheckIn } from './front-desk-checkin'
 import { PeopleSearch } from './people/people-search'
 import { TodayRoster } from './today-roster'
 import { ExpectedTonight, type ExpectedRow } from './expected-tonight'
@@ -12,11 +11,11 @@ import { todayISO } from '@/lib/dates'
 export const FRONT_DESK_PATH = '/checkin'
 
 // The front desk: one page for everyone (Michael's feedback, Nov 2026: one
-// tab, not separate Volunteers and Guests tabs). Search finds everyone. People
-// marked Volunteer get two buttons, Guest (a plain visit, e.g. working on their
-// own bike) and Volunteer (a 2.5-hour volunteer session); everyone else gets
-// one Check In button. Today's check-ins show as two lists, Volunteers and
-// Guests, with tonight's shift signups above them.
+// tab, not separate Volunteers and Guests tabs), laid out for an iPad. Search
+// finds everyone; every row has the same two button slots, Guest and Volunteer
+// (Volunteer only for people marked Volunteer), so rows line up. Today's
+// check-ins show as two lists, Volunteers and Guests, with tonight's shift
+// signups above them.
 export async function FrontDesk({ query }: { query: string }) {
   const [people, checkedInToday] = await Promise.all([searchPeople(query), getPeopleCheckedInToday()])
   const todayById = new Map(checkedInToday.map((person) => [person.id, person]))
@@ -46,9 +45,9 @@ export async function FrontDesk({ query }: { query: string }) {
             )}
             {people.length === 0 && !searched && (
               <p className="muted">
-                Search for a person by name or email to check them in. People marked Volunteer get two
-                buttons: <strong>Guest</strong> (working on their own bike) or <strong>Volunteer</strong> (a
-                2.5-hour volunteer session).
+                Search for a person by name or email, then tap <strong>Guest</strong> (a visit, like working
+                on their own bike) or, for people marked Volunteer, <strong>Volunteer</strong> (a 2.5-hour
+                volunteer session).
               </p>
             )}
           </ul>
@@ -81,41 +80,35 @@ function SearchRow({ person, here }: { person: SearchResult; here: CheckedInPers
   const isVolunteer = person.is_staff === 1
   const hereAs = here ? (here.is_volunteer_visit === 1 ? 'volunteer' : 'guest') : null
 
-  let actions: ReactNode
-  if (person.flag_level === 'banned') {
-    // Banned people go through their profile, where the blocking modal must
-    // be dismissed before check-in.
-    actions = (
-      <Link href={`/people/${person.id}`} className="btn-secondary">
-        See why
-      </Link>
-    )
-  } else {
-    // Here as a volunteer: nothing to do (changes happen in today's lists).
-    // Here as a guest: a Volunteer-marked person can still switch to a
-    // volunteer session. Always the same form, so a milestone celebration
-    // survives the buttons changing after a check-in.
-    const mode =
-      hereAs === 'volunteer'
-        ? 'none'
-        : hereAs === 'guest'
-          ? isVolunteer
-            ? 'yes'
-            : 'none'
-          : isVolunteer
-            ? 'choose'
-            : 'no'
-    actions = <CheckInForm personId={person.id} personName={name} volunteer={mode} />
-  }
-
   return (
     <li className="person-row">
       <span className="name">
         <Link href={`/people/${person.id}`}>{name}</Link>
         {person.flag_level && <FlagPill level={person.flag_level} />}
-        {hereAs && <span className="here-today">Here as a {hereAs}</span>}
       </span>
-      {actions}
+      {person.flag_level === 'banned' ? (
+        // Banned people go through their profile, where the blocking modal
+        // must be dismissed before check-in.
+        <div className="slot-actions">
+          <div className="slots">
+            <Link href={`/people/${person.id}`} className="btn-secondary slot slot-wide">
+              See why
+            </Link>
+          </div>
+        </div>
+      ) : (
+        // Not here yet: Guest, plus Volunteer for people marked Volunteer.
+        // Here as a guest: a Volunteer-marked person can still switch to a
+        // volunteer session. Here as a volunteer: nothing to do here (changes
+        // happen in today's lists).
+        <FrontDeskCheckIn
+          personId={person.id}
+          personName={name}
+          guest={!hereAs}
+          volunteer={isVolunteer && hereAs !== 'volunteer'}
+          note={hereAs ? `Here as ${hereAs}` : undefined}
+        />
+      )}
     </li>
   )
 }

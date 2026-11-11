@@ -479,6 +479,90 @@ button:disabled {
   font-size: 1rem;
 }
 
+/* Search rows (Check In, shift signup), laid out for the front-desk iPad:
+   every row the same height, the name (with any flag pill under it) on the
+   left, and the buttons on the right, always on the name's line. */
+.shift-lookup .person-row {
+  flex-wrap: nowrap;
+  min-height: 84px;
+}
+
+.shift-lookup .person-row .name .flag-pill {
+  margin-left: 0;
+}
+
+.shift-lookup .person-row .name {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.shift-lookup .row-actions {
+  flex: 0 0 auto;
+  max-width: 60%;
+  text-align: right;
+}
+
+/* Check In page buttons (app/front-desk-checkin.tsx): the same two slots on
+   every row, Guest then Volunteer, so the buttons line up down the list. A
+   row that needs only one button leaves the other slot empty. */
+.slot-actions {
+  --slot-width: 7.5rem;
+  flex: 0 0 auto;
+  display: grid;
+  justify-items: end;
+  gap: 0.35rem;
+}
+
+.slots {
+  display: grid;
+  grid-template-columns: repeat(2, var(--slot-width));
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.slots .slot {
+  width: 100%;
+  min-height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.85rem;
+  text-align: center;
+  text-decoration: none;
+}
+
+.slots .slot-guest {
+  grid-column: 1;
+}
+
+.slots .slot-volunteer {
+  grid-column: 2;
+}
+
+.slots .slot-wide {
+  grid-column: 1 / -1;
+}
+
+.slots .slot-note {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.slot-actions .celebration,
+.slot-actions .error {
+  max-width: calc(2 * var(--slot-width) + 0.6rem);
+  margin: 0;
+  text-align: right;
+}
+
 .shift-lookup .checkin-form {
   gap: 0.55rem;
 }
@@ -516,19 +600,22 @@ button:disabled {
   margin-bottom: 1rem;
 }
 
+/* One tile per line, so every name gets the full width. */
 .shift-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.6rem;
   list-style: none;
 }
 
 /* Colored left edge tells the two tabs' tiles apart at a glance. */
+/* Today's lists: every tile is one line, name on the left (wrapping inside
+   its own column if long), buttons on the right, so tiles look alike. */
 .shift-tile {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.5rem 0.75rem;
   min-width: 0;
   background: var(--surface);
@@ -553,7 +640,7 @@ button:disabled {
   align-items: flex-start;
   gap: 0.3rem;
   min-width: 0;
-  flex: 1 1 8rem;
+  flex: 1 1 auto;
 }
 
 .shift-tile a {
@@ -853,8 +940,9 @@ button:disabled {
     gap: 0.35rem;
   }
 
+  /* iPad landscape: the search column needs room for the two button slots. */
   .shift-layout {
-    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
     gap: 1.25rem;
   }
 
@@ -872,7 +960,7 @@ button:disabled {
   }
 
   .shift-layout {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   }
 }
 
@@ -943,6 +1031,19 @@ button:disabled {
 
   .person-row {
     padding: 1rem;
+  }
+
+  .slot-actions {
+    --slot-width: 6.25rem;
+  }
+
+  /* Phones are too narrow for name and buttons on one line in today's lists. */
+  .shift-tile {
+    flex-wrap: wrap;
+  }
+
+  .shift-tile-name {
+    flex: 1 1 8rem;
   }
 
   .checkin-form button {
@@ -1255,4 +1356,16 @@ button:disabled {
 .dense .visit-list {
   gap: 0.3rem;
   font-size: 0.92rem;
+}
+
+/* Narrow phones: the two button slots stack (Guest above Volunteer) so the
+   name keeps room on the left. */
+@media (max-width: 420px) {
+  .slots {
+    grid-template-columns: var(--slot-width);
+  }
+
+  .slots .slot-volunteer {
+    grid-column: 1;
+  }
 }
