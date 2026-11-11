@@ -38,6 +38,15 @@ export type CheckedInPerson = Person & {
   flag_level: FlagLevel | null
 }
 
+// A search result carries the person's most serious active flag (banned
+// outranks watch) for the front-desk marker, fetched in the same query.
+export type SearchResult = Person & { flag_level: FlagLevel | null }
+
+const TOP_FLAG_LEVEL = `(SELECT flags.level FROM flags
+   WHERE flags.person_id = people.id AND flags.resolved_at IS NULL
+   ORDER BY flags.level = 'banned' DESC
+   LIMIT 1)`
+
 export type PersonInput = {
   firstName: string
   lastName: string
@@ -61,161 +70,153 @@ export type PersonInput = {
 export const SEARCH_LIMIT = 10
 
 // `volunteersOnly` limits results to people marked Volunteer (`is_staff = 1`),
-// for the Volunteers tab; `shiftLeadsOnly` further limits to people marked
+// for shift signups; `shiftLeadsOnly` further limits to people marked
 // Shift lead (`is_site_lead = 1`), for signing up a shift's lead. The limit
 // applies after the filters, so a full page of non-matching people can't push
 // matching ones out of the results.
-export function searchPeople(
+export async function searchPeople(
   query: string,
   options: { volunteersOnly?: boolean; shiftLeadsOnly?: boolean } = {}
-): Person[] {
+): Promise<SearchResult[]> {
   if (!query.trim()) return []
   const term = `%${query.trim()}%`
   const filters = [
     options.volunteersOnly ? 'AND is_staff = 1' : '',
     options.shiftLeadsOnly ? 'AND is_site_lead = 1' : '',
   ].join(' ')
-  return db
-    .prepare(
-      `SELECT * FROM people
-       WHERE ((first_name || ' ' || last_name) LIKE ? OR email LIKE ?) ${filters}
-       ORDER BY last_name, first_name LIMIT ?`
-    )
-    .all(term, term, SEARCH_LIMIT) as Person[]
+  return db.all<SearchResult>(
+    `SELECT people.*, ${TOP_FLAG_LEVEL} AS flag_level FROM people
+     WHERE ((first_name || ' ' || last_name) LIKE ? OR email LIKE ?) ${filters}
+     ORDER BY last_name, first_name LIMIT ?`,
+    term,
+    term,
+    SEARCH_LIMIT
+  )
 }
 
-export function getPeopleCheckedInToday(): CheckedInPerson[] {
-  return db
-    .prepare(
-      `SELECT people.*, visits.is_volunteer AS is_volunteer_visit,
-         (SELECT flags.level FROM flags
-          WHERE flags.person_id = people.id AND flags.resolved_at IS NULL
-          ORDER BY flags.level = 'banned' DESC
-          LIMIT 1) AS flag_level
-       FROM visits
-       JOIN people ON people.id = visits.person_id
-       WHERE visits.visit_date = ? AND visits.checked_out = 0
-       ORDER BY people.last_name, people.first_name`
-    )
-    .all(todayISO()) as CheckedInPerson[]
+export function getPeopleCheckedInToday(): Promise<CheckedInPerson[]> {
+  return db.all<CheckedInPerson>(
+    `SELECT people.*, visits.is_volunteer AS is_volunteer_visit, ${TOP_FLAG_LEVEL} AS flag_level
+     FROM visits
+     JOIN people ON people.id = visits.person_id
+     WHERE visits.visit_date = ? AND visits.checked_out = 0
+     ORDER BY people.last_name, people.first_name`,
+    todayISO()
+  )
 }
 
 // Promote/demote re-stamp logged_by with whoever made the change, matching how
 // a re-check-in already works. With no shift lead selected, the original
 // logged_by is kept rather than erased.
-export function promoteVisitToVolunteer(personId: number, loggedBy: string | null = null): boolean {
-  const result = db
-    .prepare(
-      `UPDATE visits SET is_volunteer = 1, logged_by = COALESCE(?, logged_by)
-       WHERE person_id = ? AND visit_date = ? AND checked_out = 0 AND is_volunteer = 0`
-    )
-    .run(loggedBy, personId, todayISO())
+export async function promoteVisitToVolunteer(personId: number, loggedBy: string | null = null): Promise<boolean> {
+  const result = await db.run(
+    `UPDATE visits SET is_volunteer = 1, logged_by = COALESCE(?, logged_by)
+     WHERE person_id = ? AND visit_date = ? AND checked_out = 0 AND is_volunteer = 0`,
+    loggedBy,
+    personId,
+    todayISO()
+  )
   return result.changes === 1
 }
 
-export function changeVisitToVisitor(personId: number, loggedBy: string | null = null): boolean {
-  const result = db
-    .prepare(
-      `UPDATE visits SET is_volunteer = 0, logged_by = COALESCE(?, logged_by)
-       WHERE person_id = ? AND visit_date = ? AND checked_out = 0 AND is_volunteer = 1`
-    )
-    .run(loggedBy, personId, todayISO())
+export async function changeVisitToVisitor(personId: number, loggedBy: string | null = null): Promise<boolean> {
+  const result = await db.run(
+    `UPDATE visits SET is_volunteer = 0, logged_by = COALESCE(?, logged_by)
+     WHERE person_id = ? AND visit_date = ? AND checked_out = 0 AND is_volunteer = 1`,
+    loggedBy,
+    personId,
+    todayISO()
+  )
   return result.changes === 1
 }
 
-export function checkOutPersonToday(personId: number): boolean {
-  const result = db
-    .prepare(
-      'UPDATE visits SET checked_out = 1 WHERE person_id = ? AND visit_date = ? AND checked_out = 0'
-    )
-    .run(personId, todayISO())
+export async function checkOutPersonToday(personId: number): Promise<boolean> {
+  const result = await db.run(
+    'UPDATE visits SET checked_out = 1 WHERE person_id = ? AND visit_date = ? AND checked_out = 0',
+    personId,
+    todayISO()
+  )
   return result.changes === 1
 }
 
-export function deleteVisitToday(personId: number): boolean {
-  const result = db
-    .prepare('DELETE FROM visits WHERE person_id = ? AND visit_date = ? AND checked_out = 0')
-    .run(personId, todayISO())
+export async function deleteVisitToday(personId: number): Promise<boolean> {
+  const result = await db.run(
+    'DELETE FROM visits WHERE person_id = ? AND visit_date = ? AND checked_out = 0',
+    personId,
+    todayISO()
+  )
   return result.changes === 1
 }
 
-export function getPerson(id: number): Person | undefined {
-  return db.prepare('SELECT * FROM people WHERE id = ?').get(id) as Person | undefined
+export function getPerson(id: number): Promise<Person | undefined> {
+  return db.get<Person>('SELECT * FROM people WHERE id = ?', id)
 }
 
-export function getStaff(): Person[] {
-  return db
-    .prepare('SELECT * FROM people WHERE is_staff = 1 ORDER BY first_name, last_name')
-    .all() as Person[]
+export function getStaff(): Promise<Person[]> {
+  return db.all<Person>('SELECT * FROM people WHERE is_staff = 1 ORDER BY first_name, last_name')
 }
 
-export function getSiteLeads(): Person[] {
-  return db
-    .prepare('SELECT * FROM people WHERE is_site_lead = 1 ORDER BY first_name, last_name')
-    .all() as Person[]
+export function getSiteLeads(): Promise<Person[]> {
+  return db.all<Person>('SELECT * FROM people WHERE is_site_lead = 1 ORDER BY first_name, last_name')
 }
 
-function paramsFromInput(input: PersonInput) {
-  return {
-    firstName: input.firstName,
-    lastName: input.lastName,
-    email: input.email,
-    phone: input.phone,
-    isStaff: input.isStaff ? 1 : 0,
-    isSiteLead: input.isSiteLead ? 1 : 0,
-    emailOptOut: input.emailOptOut ? 1 : 0,
-    street1: input.street1,
-    street2: input.street2,
-    city: input.city,
-    state: input.state,
-    postalCode: input.postalCode,
-    country: input.country,
-    yearOfBirth: input.yearOfBirth,
-    tags: input.tags,
-  }
+const PERSON_COLUMNS = `first_name, last_name, email, phone, is_staff, is_site_lead, email_opt_out,
+  street1, street2, city, state, postal_code, country, year_of_birth, tags`
+
+// The form's values in the same order as PERSON_COLUMNS.
+function personValues(input: PersonInput) {
+  return [
+    input.firstName,
+    input.lastName,
+    input.email,
+    input.phone,
+    input.isStaff ? 1 : 0,
+    input.isSiteLead ? 1 : 0,
+    input.emailOptOut ? 1 : 0,
+    input.street1,
+    input.street2,
+    input.city,
+    input.state,
+    input.postalCode,
+    input.country,
+    input.yearOfBirth,
+    input.tags,
+  ]
 }
 
-export function createPerson(input: PersonInput): number {
-  const result = db
-    .prepare(
-      `INSERT INTO people (
-         first_name, last_name, email, phone, is_staff, is_site_lead, email_opt_out,
-         street1, street2, city, state, postal_code, country, year_of_birth, tags
-       ) VALUES (
-         @firstName, @lastName, @email, @phone, @isStaff, @isSiteLead, @emailOptOut,
-         @street1, @street2, @city, @state, @postalCode, @country, @yearOfBirth, @tags
-       )`
-    )
-    .run(paramsFromInput(input))
-  return Number(result.lastInsertRowid)
+export async function createPerson(input: PersonInput): Promise<number> {
+  const values = personValues(input)
+  const result = await db.run(
+    `INSERT INTO people (${PERSON_COLUMNS}) VALUES (${values.map(() => '?').join(', ')})`,
+    ...values
+  )
+  return result.lastInsertRowid
 }
 
-export function updatePerson(id: number, input: PersonInput): void {
-  db.prepare(
-    `UPDATE people SET
-       first_name = @firstName, last_name = @lastName, email = @email, phone = @phone,
-       is_staff = @isStaff, is_site_lead = @isSiteLead, email_opt_out = @emailOptOut,
-       street1 = @street1, street2 = @street2, city = @city, state = @state,
-       postal_code = @postalCode, country = @country, year_of_birth = @yearOfBirth, tags = @tags
-     WHERE id = @id`
-  ).run({ ...paramsFromInput(input), id })
+export async function updatePerson(id: number, input: PersonInput): Promise<void> {
+  const assignments = PERSON_COLUMNS.split(',')
+    .map((column) => `${column.trim()} = ?`)
+    .join(', ')
+  await db.run(`UPDATE people SET ${assignments} WHERE id = ?`, ...personValues(input), id)
 }
 
-export function getVisitsForPerson(personId: number): Visit[] {
-  return db
-    .prepare('SELECT * FROM visits WHERE person_id = ? ORDER BY visit_date DESC')
-    .all(personId) as Visit[]
+export function getVisitsForPerson(personId: number): Promise<Visit[]> {
+  return db.all<Visit>('SELECT * FROM visits WHERE person_id = ? ORDER BY visit_date DESC', personId)
 }
 
-export function checkIn(input: { personId: number; isVolunteer: boolean; loggedBy: string | null }): void {
+export async function checkIn(input: { personId: number; isVolunteer: boolean; loggedBy: string | null }): Promise<void> {
   // MAX() so a plain re-check-in the same evening never downgrades an
   // already-logged volunteer session (which would silently erase 2.5 hours).
-  db.prepare(
+  await db.run(
     `INSERT INTO visits (person_id, visit_date, is_volunteer, checked_out, logged_by)
      VALUES (?, ?, ?, 0, ?)
      ON CONFLICT (person_id, visit_date) DO UPDATE SET
        is_volunteer = MAX(is_volunteer, excluded.is_volunteer),
        checked_out = 0,
-       logged_by = excluded.logged_by`
-  ).run(input.personId, todayISO(), input.isVolunteer ? 1 : 0, input.loggedBy)
+       logged_by = excluded.logged_by`,
+    input.personId,
+    todayISO(),
+    input.isVolunteer ? 1 : 0,
+    input.loggedBy
+  )
 }

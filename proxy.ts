@@ -4,8 +4,13 @@ import { isValidSessionCookieValue, SESSION_COOKIE_NAME } from '@/lib/auth'
 
 const PUBLIC_PATHS = ['/login']
 
+// The keep-awake health check (app/api/health/route.ts): open to anyone,
+// signed in or not, with no redirects.
+const HEALTH_CHECK_PATH = '/api/health'
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+  if (pathname === HEALTH_CHECK_PATH) return NextResponse.next()
   const isPublic = PUBLIC_PATHS.includes(pathname)
   const isAuthenticated = isValidSessionCookieValue(
     request.cookies.get(SESSION_COOKIE_NAME)?.value

@@ -1,10 +1,8 @@
-import { FrontDesk } from '../front-desk'
+import { redirect } from 'next/navigation'
 
-export default async function VolunteersPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ q?: string }>
-}) {
-  const { q = '' } = await searchParams
-  return <FrontDesk tab="volunteers" query={q} />
+// Guests and Volunteers were merged into the single Check In page. Kept so
+// bookmarks and home-screen shortcuts still land somewhere (search kept).
+export default async function VolunteersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const { q } = await searchParams
+  redirect(q ? `/checkin?q=${encodeURIComponent(q)}` : '/checkin')
 }

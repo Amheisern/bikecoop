@@ -19,7 +19,7 @@ export default async function RootLayout({
 }>) {
   const isAuthenticated = await checkAuthenticated()
 
-  const siteLeads = isAuthenticated ? getSiteLeads() : []
+  const siteLeads = isAuthenticated ? await getSiteLeads() : []
   const siteLead = isAuthenticated ? await getSiteLead() : null
 
   return (

@@ -8,7 +8,7 @@ export async function GET() {
     return new Response('Unauthorized', { status: 401 })
   }
 
-  const csv = rowsToCSV(getExportRows())
+  const csv = rowsToCSV(await getExportRows())
 
   return new Response(csv, {
     headers: {

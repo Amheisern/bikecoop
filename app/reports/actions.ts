@@ -9,20 +9,19 @@ import { sendEmail } from '@/lib/email'
 import { getLapseEmailQueue, renderLapseEmail, recordLapseEmail } from '@/lib/lapse-emails'
 
 function revalidateEverything() {
-  revalidatePath('/guests')
-  revalidatePath('/volunteers')
+  revalidatePath('/checkin')
   revalidatePath('/reports')
 }
 
 export async function seedSampleDataAction() {
   await requireAuth()
-  seedSampleData()
+  await seedSampleData()
   revalidateEverything()
 }
 
 export async function clearSampleDataAction() {
   await requireAuth()
-  clearSampleData()
+  await clearSampleData()
   revalidateEverything()
 }
 
@@ -44,7 +43,7 @@ export async function sendLapseEmailsAction(
   const loggedBy = siteLead ? `${siteLead.first_name} ${siteLead.last_name}` : null
 
   // Recompute server-side — never trust what was rendered on the page.
-  const queue = getLapseEmailQueue()
+  const queue = await getLapseEmailQueue()
   let sent = 0
   let dryRun = false
   const failures: { name: string; error: string }[] = []
@@ -53,7 +52,7 @@ export async function sendLapseEmailsAction(
     const { subject, text } = renderLapseEmail(person.first_name, person.latest_end_date)
     const result = await sendEmail({ to: person.email, subject, text })
     if (result.ok) {
-      recordLapseEmail({
+      await recordLapseEmail({
         personId: person.id,
         endDate: person.latest_end_date,
         status: result.dryRun ? 'dry_run' : 'sent',
@@ -86,7 +85,7 @@ export async function importFreehubAction(
   }
 
   try {
-    const result = importFreehubPeople(await file.text())
+    const result = await importFreehubPeople(await file.text())
     revalidateEverything()
     return { result }
   } catch (error) {

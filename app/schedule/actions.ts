@@ -6,10 +6,10 @@ import { requireAuth } from '@/lib/auth'
 import { getSiteLead } from '@/lib/site-lead'
 import { cancelSignup, signUpForShift } from '@/lib/shifts'
 
-// Tonight's signups show as "expected" on the Volunteers tab too.
+// Tonight's signups show as "Signed up for tonight" on the Check In page too.
 function revalidateSchedule() {
   revalidatePath('/schedule')
-  revalidatePath('/volunteers')
+  revalidatePath('/checkin')
 }
 
 export async function signUpForShiftAction(
@@ -19,7 +19,7 @@ export async function signUpForShiftAction(
   await requireAuth()
   const shiftDate = String(formData.get('shiftDate') ?? '')
   const siteLead = await getSiteLead()
-  const result = signUpForShift({
+  const result = await signUpForShift({
     personId: Number(formData.get('personId')),
     shiftDate,
     roleId: String(formData.get('roleId') ?? ''),
@@ -35,6 +35,6 @@ export async function signUpForShiftAction(
 export async function cancelSignupAction(formData: FormData) {
   await requireAuth()
   const signupId = Number(formData.get('signupId'))
-  if (Number.isInteger(signupId) && signupId > 0) cancelSignup(signupId)
+  if (Number.isInteger(signupId) && signupId > 0) await cancelSignup(signupId)
   revalidateSchedule()
 }

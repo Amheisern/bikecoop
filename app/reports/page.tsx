@@ -26,11 +26,13 @@ export default async function ReportsPage({
 
   const period: Period = { type, year, month, quarter }
   const { label } = getPeriodRange(period)
-  const metrics = getReportMetrics(period)
-  const lapsed = getLapsedPeople()
-  const volunteers = getVolunteerRoster()
-  const emailQueue = getLapseEmailQueue()
-  const recentLapseEmails = getRecentLapseEmails()
+  const [metrics, lapsed, volunteers, emailQueue, recentLapseEmails] = await Promise.all([
+    getReportMetrics(period),
+    getLapsedPeople(),
+    getVolunteerRoster(),
+    getLapseEmailQueue(),
+    getRecentLapseEmails(),
+  ])
 
   return (
     <main className="dense">

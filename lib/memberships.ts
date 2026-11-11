@@ -12,36 +12,42 @@ export type Membership = {
 
 export type MembershipStatus = 'active' | 'lapsed' | 'none'
 
-export function getMembershipsForPerson(personId: number): Membership[] {
-  return db
-    .prepare('SELECT * FROM memberships WHERE person_id = ? ORDER BY end_date DESC')
-    .all(personId) as Membership[]
+export function getMembershipsForPerson(personId: number): Promise<Membership[]> {
+  return db.all<Membership>('SELECT * FROM memberships WHERE person_id = ? ORDER BY end_date DESC', personId)
 }
 
-export function getLatestMembership(personId: number): Membership | undefined {
-  return db
-    .prepare('SELECT * FROM memberships WHERE person_id = ? ORDER BY end_date DESC LIMIT 1')
-    .get(personId) as Membership | undefined
+export function getLatestMembership(personId: number): Promise<Membership | undefined> {
+  return db.get<Membership>('SELECT * FROM memberships WHERE person_id = ? ORDER BY end_date DESC LIMIT 1', personId)
 }
 
-export function getMembershipStatus(personId: number): {
+// Active if the latest membership hasn't ended yet; also used for the export,
+// which already has each person's latest end date in hand.
+export function membershipStatusFor(latestEndDate: string | null | undefined): MembershipStatus {
+  if (!latestEndDate) return 'none'
+  return latestEndDate >= todayISO() ? 'active' : 'lapsed'
+}
+
+export async function getMembershipStatus(personId: number): Promise<{
   status: MembershipStatus
   latest: Membership | undefined
-} {
-  const latest = getLatestMembership(personId)
-  if (!latest) return { status: 'none', latest: undefined }
-  return { status: latest.end_date >= todayISO() ? 'active' : 'lapsed', latest }
+}> {
+  const latest = await getLatestMembership(personId)
+  return { status: membershipStatusFor(latest?.end_date), latest }
 }
 
-export function createMembership(input: {
+export async function createMembership(input: {
   personId: number
   startDate: string
   endDate: string
   loggedBy: string | null
-}): void {
-  db.prepare(
-    `INSERT INTO memberships (person_id, start_date, end_date, logged_by) VALUES (?, ?, ?, ?)`
-  ).run(input.personId, input.startDate, input.endDate, input.loggedBy)
+}): Promise<void> {
+  await db.run(
+    `INSERT INTO memberships (person_id, start_date, end_date, logged_by) VALUES (?, ?, ?, ?)`,
+    input.personId,
+    input.startDate,
+    input.endDate,
+    input.loggedBy
+  )
 }
 
 export type LapsedPerson = {
@@ -51,16 +57,15 @@ export type LapsedPerson = {
   latest_end_date: string
 }
 
-export function getLapsedPeople(): LapsedPerson[] {
-  return db
-    .prepare(
-      `SELECT p.id, p.first_name, p.last_name, m.end_date as latest_end_date
-       FROM people p
-       JOIN memberships m ON m.person_id = p.id
-       WHERE m.end_date = (SELECT MAX(end_date) FROM memberships WHERE person_id = p.id)
-         AND m.end_date < ?
-       GROUP BY p.id
-       ORDER BY m.end_date DESC`
-    )
-    .all(todayISO()) as LapsedPerson[]
+export function getLapsedPeople(): Promise<LapsedPerson[]> {
+  return db.all<LapsedPerson>(
+    `SELECT p.id, p.first_name, p.last_name, m.end_date as latest_end_date
+     FROM people p
+     JOIN memberships m ON m.person_id = p.id
+     WHERE m.end_date = (SELECT MAX(end_date) FROM memberships WHERE person_id = p.id)
+       AND m.end_date < ?
+     GROUP BY p.id
+     ORDER BY m.end_date DESC`,
+    todayISO()
+  )
 }

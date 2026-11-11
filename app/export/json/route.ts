@@ -8,7 +8,7 @@ export async function GET() {
     return new Response('Unauthorized', { status: 401 })
   }
 
-  return Response.json(getExportRows(), {
+  return Response.json(await getExportRows(), {
     headers: {
       'Content-Disposition': 'attachment; filename="bikecoop-export.json"',
     },

@@ -7,7 +7,7 @@ export async function getSiteLead(): Promise<Person | null> {
   const cookieStore = await cookies()
   const raw = cookieStore.get(SITE_LEAD_COOKIE)?.value
   if (!raw) return null
-  const person = getPerson(Number(raw))
+  const person = await getPerson(Number(raw))
   return person ?? null
 }
 

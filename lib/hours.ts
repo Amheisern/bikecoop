@@ -3,18 +3,17 @@ import { db } from '@/lib/db'
 export const MILESTONES = [5, 10, 20, 30, 50, 100, 200, 300, 400, 500]
 export const HOURS_PER_VOLUNTEER_VISIT = 2.5
 
-export function getVolunteerHours(personId: number): number {
-  const row = db
-    .prepare('SELECT COUNT(*) as count FROM visits WHERE person_id = ? AND is_volunteer = 1')
-    .get(personId) as { count: number }
-  return row.count * HOURS_PER_VOLUNTEER_VISIT
+export async function getVolunteerHours(personId: number): Promise<number> {
+  const row = await db.get<{ count: number }>(
+    'SELECT COUNT(*) as count FROM visits WHERE person_id = ? AND is_volunteer = 1',
+    personId
+  )
+  return (row?.count ?? 0) * HOURS_PER_VOLUNTEER_VISIT
 }
 
-export function getFootTraffic(personId: number): number {
-  const row = db
-    .prepare('SELECT COUNT(*) as count FROM visits WHERE person_id = ?')
-    .get(personId) as { count: number }
-  return row.count
+export async function getFootTraffic(personId: number): Promise<number> {
+  const row = await db.get<{ count: number }>('SELECT COUNT(*) as count FROM visits WHERE person_id = ?', personId)
+  return row?.count ?? 0
 }
 
 export function getCurrentMilestone(hours: number): number | null {
@@ -44,14 +43,13 @@ export type VolunteerRosterEntry = {
   hours: number
 }
 
-export function getVolunteerRoster(): VolunteerRosterEntry[] {
-  return db
-    .prepare(
-      `SELECT p.id, p.first_name, p.last_name, COUNT(*) * ? as hours
-       FROM people p
-       JOIN visits v ON v.person_id = p.id AND v.is_volunteer = 1
-       GROUP BY p.id
-       ORDER BY hours DESC`
-    )
-    .all(HOURS_PER_VOLUNTEER_VISIT) as VolunteerRosterEntry[]
+export function getVolunteerRoster(): Promise<VolunteerRosterEntry[]> {
+  return db.all<VolunteerRosterEntry>(
+    `SELECT p.id, p.first_name, p.last_name, COUNT(*) * ? as hours
+     FROM people p
+     JOIN visits v ON v.person_id = p.id AND v.is_volunteer = 1
+     GROUP BY p.id
+     ORDER BY hours DESC`,
+    HOURS_PER_VOLUNTEER_VISIT
+  )
 }

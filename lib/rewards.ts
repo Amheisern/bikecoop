@@ -23,14 +23,12 @@ export type RewardStatus = {
   redemption: RewardRedemption | null
 }
 
-export function getRedemptionsForPerson(personId: number): RewardRedemption[] {
-  return db
-    .prepare('SELECT * FROM reward_redemptions WHERE person_id = ?')
-    .all(personId) as RewardRedemption[]
+export function getRedemptionsForPerson(personId: number): Promise<RewardRedemption[]> {
+  return db.all<RewardRedemption>('SELECT * FROM reward_redemptions WHERE person_id = ?', personId)
 }
 
-export function getRewardStatuses(personId: number, volunteerHours: number): RewardStatus[] {
-  const redemptions = getRedemptionsForPerson(personId)
+export async function getRewardStatuses(personId: number, volunteerHours: number): Promise<RewardStatus[]> {
+  const redemptions = await getRedemptionsForPerson(personId)
   return REWARD_TIERS.map((tier) => {
     const redemption = redemptions.find((r) => r.tier_id === tier.id) ?? null
     const status = redemption ? 'redeemed' : volunteerHours >= tier.hours ? 'available' : 'locked'
@@ -38,8 +36,13 @@ export function getRewardStatuses(personId: number, volunteerHours: number): Rew
   })
 }
 
-export function redeemReward(input: { personId: number; tierId: RewardTierId; loggedBy: string | null }): void {
-  db.prepare('INSERT INTO reward_redemptions (person_id, tier_id, logged_by) VALUES (?, ?, ?)').run(
+export async function redeemReward(input: {
+  personId: number
+  tierId: RewardTierId
+  loggedBy: string | null
+}): Promise<void> {
+  await db.run(
+    'INSERT INTO reward_redemptions (person_id, tier_id, logged_by) VALUES (?, ?, ?)',
     input.personId,
     input.tierId,
     input.loggedBy

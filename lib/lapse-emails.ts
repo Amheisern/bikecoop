@@ -17,10 +17,9 @@ export type LapseEmailQueueEntry = {
 // Everyone due a lapsed notice: latest membership expired at least
 // LAPSE_GRACE_DAYS ago, has an email, hasn't opted out, isn't banned, and
 // hasn't already been sent a notice for this particular lapse.
-export function getLapseEmailQueue(): LapseEmailQueueEntry[] {
+export function getLapseEmailQueue(): Promise<LapseEmailQueueEntry[]> {
   const cutoff = addDaysISO(todayISO(), -LAPSE_GRACE_DAYS)
-  return db
-    .prepare(
+  return db.all<LapseEmailQueueEntry>(
       `SELECT p.id, p.first_name, p.last_name, p.email, m.end_date as latest_end_date
        FROM people p
        JOIN memberships m ON m.person_id = p.id
@@ -37,9 +36,9 @@ export function getLapseEmailQueue(): LapseEmailQueueEntry[] {
            WHERE le.person_id = p.id AND le.membership_end_date = m.end_date
          )
        GROUP BY p.id
-       ORDER BY m.end_date DESC`
-    )
-    .all(cutoff) as LapseEmailQueueEntry[]
+       ORDER BY m.end_date DESC`,
+    cutoff
+  )
 }
 
 // The notice itself. Edit freely — plain text on purpose (renders everywhere,
@@ -60,16 +59,20 @@ export function renderLapseEmail(firstName: string, endDate: string): { subject:
   }
 }
 
-export function recordLapseEmail(input: {
+export async function recordLapseEmail(input: {
   personId: number
   endDate: string
   status: 'sent' | 'dry_run'
   loggedBy: string | null
-}): void {
-  db.prepare(
+}): Promise<void> {
+  await db.run(
     `INSERT INTO lapse_emails (person_id, membership_end_date, status, logged_by)
-     VALUES (?, ?, ?, ?)`
-  ).run(input.personId, input.endDate, input.status, input.loggedBy)
+     VALUES (?, ?, ?, ?)`,
+    input.personId,
+    input.endDate,
+    input.status,
+    input.loggedBy
+  )
 }
 
 export type LapseEmailLogEntry = {
@@ -83,15 +86,14 @@ export type LapseEmailLogEntry = {
   sent_at: string
 }
 
-export function getRecentLapseEmails(limit = 20): LapseEmailLogEntry[] {
-  return db
-    .prepare(
+export function getRecentLapseEmails(limit = 20): Promise<LapseEmailLogEntry[]> {
+  return db.all<LapseEmailLogEntry>(
       `SELECT le.id, le.person_id, p.first_name, p.last_name,
               le.membership_end_date, le.status, le.logged_by, le.sent_at
        FROM lapse_emails le
        JOIN people p ON p.id = le.person_id
        ORDER BY le.sent_at DESC, le.id DESC
-       LIMIT ?`
-    )
-    .all(limit) as LapseEmailLogEntry[]
+       LIMIT ?`,
+    limit
+  )
 }

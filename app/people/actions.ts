@@ -42,28 +42,28 @@ function readPersonForm(formData: FormData) {
   }
 }
 
-// Adding a person happens from the Guests tab (someone new just walked in), so
-// saving also checks them in as a guest and returns to Guests.
+// Adding a person happens from the Check In page (someone new just walked in),
+// so saving also checks them in as a guest and returns to Check In.
 export async function createPersonAction(_prevState: string | undefined, formData: FormData) {
   await requireAuth()
   const input = readPersonForm(formData)
   if (!input.firstName || !input.lastName) {
     return 'First and last name are required.'
   }
-  const id = createPerson(input)
+  const id = await createPerson(input)
 
   const loggedByName = await currentShiftLeadName()
 
   if (formData.get('startMembership') === 'on') {
     const start = todayISO()
-    createMembership({ personId: id, startDate: start, endDate: oneYearFrom(start), loggedBy: loggedByName })
+    await createMembership({ personId: id, startDate: start, endDate: oneYearFrom(start), loggedBy: loggedByName })
   }
 
-  checkIn({ personId: id, isVolunteer: false, loggedBy: loggedByName })
+  await checkIn({ personId: id, isVolunteer: false, loggedBy: loggedByName })
 
   revalidateFrontDesk()
   revalidatePath('/reports')
-  redirect('/guests')
+  redirect('/checkin')
 }
 
 export async function updatePersonAction(
@@ -76,7 +76,7 @@ export async function updatePersonAction(
   if (!input.firstName || !input.lastName) {
     return 'First and last name are required.'
   }
-  updatePerson(id, input)
+  await updatePerson(id, input)
   revalidateFrontDesk()
   revalidatePath(`/people/${id}`)
   redirect(`/people/${id}`)
@@ -91,7 +91,7 @@ export async function checkInAction(
   await requireAuth()
   const personId = Number(formData.get('personId'))
   const isVolunteer = formData.get('isVolunteer') === 'on'
-  const person = getPerson(personId)
+  const person = await getPerson(personId)
   if (!person) return { error: 'Invalid person.' }
   // Only people marked Volunteer on their profile can log a volunteer session.
   // The forms already hide the option for everyone else; this is the backstop.
@@ -100,25 +100,24 @@ export async function checkInAction(
   }
   const siteLead = await getSiteLead()
 
-  const hoursBefore = isVolunteer ? getVolunteerHours(personId) : 0
+  const hoursBefore = isVolunteer ? await getVolunteerHours(personId) : 0
 
-  checkIn({ personId, isVolunteer, loggedBy: siteLead ? `${siteLead.first_name} ${siteLead.last_name}` : null })
+  await checkIn({ personId, isVolunteer, loggedBy: siteLead ? `${siteLead.first_name} ${siteLead.last_name}` : null })
 
   revalidateFrontDesk()
   revalidatePath(`/people/${personId}`)
 
   if (!isVolunteer) return null
 
-  const crossed = getCrossedMilestone(hoursBefore, getVolunteerHours(personId))
+  const crossed = getCrossedMilestone(hoursBefore, await getVolunteerHours(personId))
   if (!crossed) return null
 
   return { celebration: `🎉 ${person.first_name} just passed ${crossed} hours!` }
 }
 
-// Both front-desk tabs show today's check-ins, so any change refreshes both.
+// The Check In page shows today's check-ins.
 function revalidateFrontDesk() {
-  revalidatePath('/guests')
-  revalidatePath('/volunteers')
+  revalidatePath('/checkin')
 }
 
 function validPersonId(personId: number): boolean {
@@ -135,22 +134,22 @@ export async function promoteVisitToVolunteerAction(
 ): Promise<{ error?: string; celebration?: string }> {
   await requireAuth()
   if (!validPersonId(personId)) return { error: 'Invalid person.' }
-  const person = getPerson(personId)
+  const person = await getPerson(personId)
   if (!person) return { error: 'Invalid person.' }
   // Same rule as the check-in form: only people marked Volunteer on their
   // profile can log a volunteer session.
   if (person.is_staff !== 1) {
     return { error: `Mark ${person.first_name} as a Volunteer on their profile first.` }
   }
-  const hoursBefore = getVolunteerHours(personId)
-  if (!promoteVisitToVolunteer(personId, await currentShiftLeadName())) {
+  const hoursBefore = await getVolunteerHours(personId)
+  if (!(await promoteVisitToVolunteer(personId, await currentShiftLeadName()))) {
     return { error: 'This person is no longer checked in as a guest.' }
   }
 
   revalidateFrontDesk()
   revalidatePath(`/people/${personId}`)
   revalidatePath('/reports')
-  const crossed = getCrossedMilestone(hoursBefore, getVolunteerHours(personId))
+  const crossed = getCrossedMilestone(hoursBefore, await getVolunteerHours(personId))
   if (crossed) return { celebration: `🎉 ${person.first_name} just passed ${crossed} hours!` }
   return {}
 }
@@ -158,7 +157,7 @@ export async function promoteVisitToVolunteerAction(
 export async function changeVisitToVisitorAction(personId: number): Promise<string | null> {
   await requireAuth()
   if (!validPersonId(personId)) return 'Invalid person.'
-  if (!changeVisitToVisitor(personId, await currentShiftLeadName())) {
+  if (!(await changeVisitToVisitor(personId, await currentShiftLeadName()))) {
     return 'This person is no longer checked in as a volunteer.'
   }
 
@@ -171,7 +170,7 @@ export async function changeVisitToVisitorAction(personId: number): Promise<stri
 export async function checkOutPersonTodayAction(personId: number): Promise<string | null> {
   await requireAuth()
   if (!validPersonId(personId)) return 'Invalid person.'
-  if (!checkOutPersonToday(personId)) return 'This person is no longer checked in.'
+  if (!(await checkOutPersonToday(personId))) return 'This person is no longer checked in.'
 
   revalidateFrontDesk()
   return null
@@ -180,7 +179,7 @@ export async function checkOutPersonTodayAction(personId: number): Promise<strin
 export async function deleteVisitTodayAction(personId: number): Promise<string | null> {
   await requireAuth()
   if (!validPersonId(personId)) return 'Invalid person.'
-  if (!deleteVisitToday(personId)) return 'This person is no longer checked in.'
+  if (!(await deleteVisitToday(personId))) return 'This person is no longer checked in.'
 
   revalidateFrontDesk()
   revalidatePath(`/people/${personId}`)
@@ -204,7 +203,7 @@ export async function addFlagAction(_prevState: string | undefined, formData: Fo
   }
 
   const siteLead = await getSiteLead()
-  createFlag({
+  await createFlag({
     personId,
     level,
     note,
@@ -219,7 +218,7 @@ export async function resolveFlagAction(formData: FormData) {
   const flagId = Number(formData.get('flagId'))
   const personId = Number(formData.get('personId'))
 
-  resolveFlag(flagId)
+  await resolveFlag(flagId)
   revalidatePath(`/people/${personId}`)
 }
 
@@ -237,7 +236,7 @@ export async function addMembershipAction(_prevState: string | undefined, formDa
   }
 
   const siteLead = await getSiteLead()
-  createMembership({
+  await createMembership({
     personId,
     startDate,
     endDate,
@@ -258,7 +257,7 @@ export async function addNoteAction(_prevState: string | undefined, formData: Fo
   }
 
   const siteLead = await getSiteLead()
-  createNote({
+  await createNote({
     personId,
     text,
     loggedBy: siteLead ? `${siteLead.first_name} ${siteLead.last_name}` : null,
@@ -275,20 +274,20 @@ export async function redeemRewardAction(formData: FormData) {
   const tier = REWARD_TIERS.find((t) => t.id === tierId)
   if (!tier) return
 
-  const hours = getVolunteerHours(personId)
+  const hours = await getVolunteerHours(personId)
   if (hours < tier.hours) return
 
-  const alreadyRedeemed = getRedemptionsForPerson(personId).some((r) => r.tier_id === tierId)
+  const alreadyRedeemed = (await getRedemptionsForPerson(personId)).some((r) => r.tier_id === tierId)
   if (alreadyRedeemed) return
 
   const siteLead = await getSiteLead()
   const loggedByName = siteLead ? `${siteLead.first_name} ${siteLead.last_name}` : null
 
-  redeemReward({ personId, tierId, loggedBy: loggedByName })
+  await redeemReward({ personId, tierId, loggedBy: loggedByName })
 
   if (tier.id === 'free_membership') {
     const start = todayISO()
-    createMembership({
+    await createMembership({
       personId,
       startDate: start,
       endDate: oneYearFrom(start),

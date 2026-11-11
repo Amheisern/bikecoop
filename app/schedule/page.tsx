@@ -20,10 +20,10 @@ function weekStartOf(dateISO: string): string {
   return addDaysISO(dateISO, -((weekday + 6) % 7))
 }
 
-export default function SchedulePage() {
+export default async function SchedulePage() {
   const today = todayISO()
   const dates = upcomingShiftDates(today)
-  const signups = getSignupsBetween(dates[0], dates[dates.length - 1])
+  const signups = await getSignupsBetween(dates[0], dates[dates.length - 1])
 
   const weeks = new Map<string, string[]>()
   for (const date of dates) {
@@ -37,7 +37,7 @@ export default function SchedulePage() {
       <div className="page-header schedule-intro">
         <p className="muted">
           Shift nights for the next {SIGNUP_WEEKS_AHEAD} weeks, {SHIFT_HOURS}. Signing up doesn&apos;t log
-          hours; checking in on the Volunteers tab does.
+          hours; checking in as a Volunteer on the Check In page does.
         </p>
       </div>
 

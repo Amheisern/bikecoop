@@ -88,35 +88,35 @@ const SIGNUP_SELECT = `
   FROM shift_signups
   JOIN people ON people.id = shift_signups.person_id`
 
-export function getSignupsBetween(startISO: string, endISO: string): ShiftSignup[] {
-  return db
-    .prepare(
-      `${SIGNUP_SELECT}
-       WHERE shift_signups.shift_date BETWEEN ? AND ?
-       ORDER BY shift_signups.shift_date, people.last_name, people.first_name`
-    )
-    .all(startISO, endISO) as ShiftSignup[]
+export function getSignupsBetween(startISO: string, endISO: string): Promise<ShiftSignup[]> {
+  return db.all<ShiftSignup>(
+    `${SIGNUP_SELECT}
+     WHERE shift_signups.shift_date BETWEEN ? AND ?
+     ORDER BY shift_signups.shift_date, people.last_name, people.first_name`,
+    startISO,
+    endISO
+  )
 }
 
-export function getSignupsForDate(dateISO: string): ShiftSignup[] {
+export function getSignupsForDate(dateISO: string): Promise<ShiftSignup[]> {
   return getSignupsBetween(dateISO, dateISO)
 }
 
 export type SignUpResult = { ok: true } | { ok: false; error: string }
 
-export function signUpForShift(input: {
+export async function signUpForShift(input: {
   personId: number
   shiftDate: string
   roleId: string
   loggedBy: string | null
   source?: 'app' | 'slack'
-}): SignUpResult {
+}): Promise<SignUpResult> {
   const role = getShiftRole(input.roleId)
   if (!role) return { ok: false, error: 'Unknown role.' }
   if (!isOpenShiftDate(input.shiftDate)) {
     return { ok: false, error: `Signups are open for shift nights in the next ${SIGNUP_WEEKS_AHEAD} weeks only.` }
   }
-  const person = getPerson(input.personId)
+  const person = await getPerson(input.personId)
   if (!person) return { ok: false, error: 'Invalid person.' }
   // Same rule as volunteer check-in: only people marked Volunteer.
   if (person.is_staff !== 1) {
@@ -125,31 +125,38 @@ export function signUpForShift(input: {
   if (role.shiftLeadsOnly && person.is_site_lead !== 1) {
     return { ok: false, error: `Only people marked Shift lead can take the ${role.label} slot.` }
   }
-  if (getTopFlagLevel(person.id) === 'banned') {
+  if ((await getTopFlagLevel(person.id)) === 'banned') {
     return { ok: false, error: `${person.first_name} has an active banned flag.` }
   }
 
   // Check-then-insert in one transaction so the slot cap can't be exceeded.
-  return db.transaction((): SignUpResult => {
-    const existing = db
-      .prepare('SELECT person_id FROM shift_signups WHERE shift_date = ? AND role_id = ?')
-      .all(input.shiftDate, role.id) as { person_id: number }[]
+  return db.transaction(async (tx): Promise<SignUpResult> => {
+    const existing = await tx.all<{ person_id: number }>(
+      'SELECT person_id FROM shift_signups WHERE shift_date = ? AND role_id = ?',
+      input.shiftDate,
+      role.id
+    )
     if (existing.some((row) => row.person_id === person.id)) {
       return { ok: false, error: `${person.first_name} is already signed up for ${role.label} that night.` }
     }
     if (role.maxSlots !== null && existing.length >= role.maxSlots) {
       return { ok: false, error: `That night already has a ${role.label.toLowerCase()}.` }
     }
-    db.prepare(
+    await tx.run(
       `INSERT INTO shift_signups (person_id, shift_date, role_id, source, logged_by)
-       VALUES (?, ?, ?, ?, ?)`
-    ).run(person.id, input.shiftDate, role.id, input.source ?? 'app', input.loggedBy)
+       VALUES (?, ?, ?, ?, ?)`,
+      person.id,
+      input.shiftDate,
+      role.id,
+      input.source ?? 'app',
+      input.loggedBy
+    )
     return { ok: true }
-  })()
+  })
 }
 
-export function cancelSignup(signupId: number): boolean {
-  return db.prepare('DELETE FROM shift_signups WHERE id = ?').run(signupId).changes === 1
+export async function cancelSignup(signupId: number): Promise<boolean> {
+  return (await db.run('DELETE FROM shift_signups WHERE id = ?', signupId)).changes === 1
 }
 
 export type ExpectedVolunteer = {
@@ -164,23 +171,23 @@ export type ExpectedVolunteer = {
 
 // People signed up for a night who haven't checked in as a volunteer yet,
 // one entry per person (with all their roles). Defaults to tonight.
-export function getExpectedVolunteers(dateISO: string = todayISO()): ExpectedVolunteer[] {
-  const rows = db
-    .prepare(
+export async function getExpectedVolunteers(dateISO: string = todayISO()): Promise<ExpectedVolunteer[]> {
+  const [rows, guests] = await Promise.all([
+    db.all<ShiftSignup>(
       `${SIGNUP_SELECT}
        LEFT JOIN visits ON visits.person_id = shift_signups.person_id AND visits.visit_date = ?
        WHERE shift_signups.shift_date = ?
          AND (visits.id IS NULL OR visits.is_volunteer = 0)
-       ORDER BY people.last_name, people.first_name`
-    )
-    .all(dateISO, dateISO) as ShiftSignup[]
-  const guestIds = new Set(
-    (
-      db
-        .prepare('SELECT person_id FROM visits WHERE visit_date = ? AND is_volunteer = 0 AND checked_out = 0')
-        .all(dateISO) as { person_id: number }[]
-    ).map((row) => row.person_id)
-  )
+       ORDER BY people.last_name, people.first_name`,
+      dateISO,
+      dateISO
+    ),
+    db.all<{ person_id: number }>(
+      'SELECT person_id FROM visits WHERE visit_date = ? AND is_volunteer = 0 AND checked_out = 0',
+      dateISO
+    ),
+  ])
+  const guestIds = new Set(guests.map((row) => row.person_id))
 
   const byPerson = new Map<number, ExpectedVolunteer>()
   for (const row of rows) {

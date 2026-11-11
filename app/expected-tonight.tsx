@@ -15,7 +15,7 @@ export type ExpectedRow = {
   checkedInAsGuest: boolean
 }
 
-// Volunteers tab: people signed up for tonight who haven't checked in as a
+// Check In page: people signed up for tonight who haven't checked in as a
 // volunteer yet. One tap checks them in (a 2.5-hour session); they then move
 // to "Volunteers here today". The celebration lives here, not on the row, so
 // it survives the row disappearing.
