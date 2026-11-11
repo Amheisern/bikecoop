@@ -12,12 +12,26 @@ abstractions. Prefer the simplest thing that works. It may later be offered to o
 ## Stack (do not change without asking)
 
 - Next.js (App Router) + TypeScript — UI and API in one deployable app
-- SQLite via `better-sqlite3` (synchronous API is fine; this app has one concurrent user)
+- SQLite via libSQL (`@libsql/client`), the SQLite fork Turso runs on. Plain
+  SQLite SQL and schema. **Changed Nov 2026 (Nick approved):** production data
+  lives in a free Turso database instead of a file on Render's disk, because
+  Render's free tier wipes local files on every deploy and restart.
 - No ORM, no Tailwind, no component libraries unless asked. Plain CSS or CSS modules.
-- Hosted on Render. Deploys automatically on push to `main` via GitHub.
-- Database file location comes from `process.env.DATABASE_PATH`, defaulting to
-  `./bikecoop.db` locally. On Render production it will be `/var/data/bikecoop.db`.
-  Never hardcode paths. Never commit the database file (gitignored).
+- Hosted on Render's free tier. Deploys automatically on push to `main` via
+  GitHub. A free cron-job.org job visits `/api/health` every 10 minutes so the
+  app never goes to sleep (free services sleep after 15 idle minutes and take
+  about a minute to wake; Slack needs answers within 3 seconds).
+- Where the database is (`resolveDatabaseUrl()` in `lib/db.ts`): Turso when
+  `TURSO_DATABASE_URL` (+ `TURSO_AUTH_TOKEN`) is set (production); otherwise a
+  local file at `DATABASE_PATH`, default `./bikecoop.db` (dev); `:memory:` for
+  tests and always during `next build`. Never hardcode paths. Never commit the
+  database file (gitignored).
+- **Every query is async** (`await db.all/get/run(sql, ...args)`), because a
+  Turso query is a network round trip. Avoid per-person query loops (the export
+  and import do everything in a couple of queries / one `db.batch()`).
+  `db.batch()` = several writes, all or nothing, one round trip.
+  `db.transaction()` = a short read-then-write (e.g. a slot cap check); Turso
+  cancels interactive transactions after 5 seconds, so keep them tiny.
 
 ## Domain model (see db/schema.sql)
 
@@ -62,55 +76,62 @@ mirrors those fields and adds the more structured Flags system on top.
 
 New columns on `people` (`is_site_lead`, address, `year_of_birth`, `tags`) are added to
 already-deployed databases via a small idempotent migration in `lib/db.ts`
-(`ALTER TABLE ... ADD COLUMN`, guarded by checking `PRAGMA table_info` first) — schema.sql's
-`CREATE TABLE IF NOT EXISTS` only covers brand-new databases.
+(`ensureColumns`: `ALTER TABLE ... ADD COLUMN`, guarded by checking `PRAGMA table_info` first) — schema.sql's
+`CREATE TABLE IF NOT EXISTS` only covers brand-new databases. Schema and
+migrations run once per server process, on the first query.
 
 For one-off **data** fixes (not schema changes) — e.g. backfilling a new flag's value
-from an old one — use `lib/db.ts`'s `runOnce(db, name, fn)`, backed by the
+from an old one — use `lib/db.ts`'s `runOnce(client, name, sql)`, backed by the
 `schema_migrations` table. This ran once already to fix a real bug: splitting
 `is_staff`/`is_site_lead` initially left every already-existing "staff" person
 silently dropped from the site-lead dropdown, since `is_site_lead` defaulted to 0 for
 everyone regardless of their prior `is_staff` value. Any future flag split or similar
 change needs the same treatment — a plain `ensureColumn` is not enough on its own.
 
-## Front desk: Volunteers and Guests tabs
+## Front desk: one Check In page
 
-Tabs: Volunteers, Guests, Schedule, Reports. `/` redirects to **`/guests`** (the home tab).
-`/shift` (the old single front-desk page) and `/people` (the old People tab, merged
-into Guests) both redirect to `/guests` so old bookmarks still work. Profiles stay at
-`/people/[id]` and highlight the Guests tab. Both tabs share one layout (`app/front-desk.tsx`): search on
-the left, today's check-ins for that tab on the right (`app/today-roster.tsx`).
+Tabs: Check In, Schedule, Reports. **Changed Nov 11, 2026 (Michael's
+feedback): one front-desk page, not separate Volunteers and Guests tabs.**
+`/checkin` is the home page; `/`, `/guests`, `/volunteers`, `/shift` and
+`/people` all redirect there (a search in the old URL is kept). Profiles stay
+at `/people/[id]` and highlight the Check In tab. Layout (`app/front-desk.tsx`):
+search on the left; on the right, Signed up for tonight, then Volunteers here
+today, then Guests here today (`app/today-roster.tsx`, once per group).
 
-- **Volunteers tab** (`/volunteers`): search finds only people marked Volunteer
-  (`is_staff = 1`, via `searchPeople(q, { volunteersOnly: true })`). Check In logs a
-  2.5-hour volunteer session and shows the milestone toast. People not marked
-  Volunteer never appear here; they check in on Guests. Above today's list,
-  **Signed up for tonight** (`app/expected-tonight.tsx`) shows tonight's signups
-  who haven't checked in as a volunteer yet, with their roles and a one-tap Check
-  In (banned: "See why"). It's hidden on non-shift nights with no signups.
-- **Guests tab** (`/guests`): search finds everyone, including volunteers on nights
-  they're just working on their own bike. Check In logs a plain visit. It is also
-  where new people are added: a "Not listed? Add a new person" link always shows
-  (common names always match someone), and a big "+ Add new person" button
-  replaces it when a search finds nobody. The form (`/people/new`) is not
-  prefilled from the search. **Saving it creates the person, checks them in as a
-  guest, and returns to Guests** (`createPersonAction`).
+- **Search** finds everyone. Each result row's buttons:
+  - Marked Volunteer (`is_staff = 1`): **Guest** (a plain visit, e.g. working on
+    their own bike) and **Volunteer** (a 2.5-hour volunteer session, milestone
+    toast).
+  - Not marked Volunteer: one **Check In** (a plain visit).
+  - **Banned**: no buttons, only "See why", a link to their profile, where the
+    blocking modal must be dismissed first.
+  - Already here as a volunteer: no buttons ("Here as a volunteer"); changes
+    happen in today's lists. Already here as a guest: only **Volunteer**, for
+    Volunteer-marked people ("Here as a guest").
+  - The check-in form (`app/people/checkin-form.tsx`) stays mounted in every
+    non-banned row (mode `none` when there are no buttons) so a milestone
+    celebration survives the buttons changing after a check-in.
 - Search is capped at `SEARCH_LIMIT` (10) with a "keep typing" hint when full.
-  Flagged people show a ⛔/⚠️ marker. **Banned** people (on either tab) have no
-  Check In button, only "See why", a link to their profile, where the blocking
-  modal must be dismissed first. Search rows note when someone is already checked
-  in today, and on which tab.
-- **Today's list**: everyone checked in today and not checked out, for that tab.
-  Each tile has a move button with a confirmation: "Move to Guests" (demote) or
-  "Move to Volunteers" (promote; shown only for Volunteer-marked people). Promote/
-  demote re-stamp `logged_by` with the current shift lead. Removing a tile offers
-  "Check out, keep visit" (sets `checked_out`) or "Delete visit record" (deletes
-  today's visit row, no trace).
+  Flagged people show a ⛔/⚠️ marker (the flag level comes back with the search,
+  no extra queries).
+- **Adding people** happens here: a "Not listed? Add a new person" link always
+  shows (common names always match someone), and a big "+ Add new person"
+  button replaces it when a search finds nobody. The form (`/people/new`) is not
+  prefilled from the search. **Saving it creates the person, checks them in as
+  a guest, and returns to Check In** (`createPersonAction`).
+- **Signed up for tonight** (`app/expected-tonight.tsx`) shows tonight's signups
+  who haven't checked in as a volunteer yet, with their roles and a one-tap
+  Check In (banned: "See why"). Hidden on non-shift nights with no signups.
+- **Today's lists**: everyone checked in today and not checked out, split into
+  Volunteers and Guests. Each tile has a move button with a confirmation: "Move
+  to Guests" (demote) or "Move to Volunteers" (promote; shown only for
+  Volunteer-marked people). Promote/demote re-stamp `logged_by` with the current
+  shift lead. Removing a tile offers "Check out, keep visit" (sets
+  `checked_out`) or "Delete visit record" (deletes today's visit row, no trace).
 - `checkInAction` refuses a volunteer session for anyone not marked Volunteer
   (server-side backstop; the forms already hide the option).
-- Profiles are reached from either tab's search results (name links to the
-  profile, which has Edit). Check-in happens on the front-desk tabs, on a profile
-  (which keeps its "Volunteer session" checkbox), or by adding a new person.
+- Check-in also happens on a profile (which keeps its "Volunteer session"
+  checkbox) or by adding a new person.
 
 ## Shift schedule (shift-plan Phase 2)
 
@@ -132,6 +153,7 @@ grouped by week, with each role's signups. Nights and roles are code constants i
   lead who made the signup.
 - A shift lead signs volunteers up; volunteers can't sign themselves up until
   Phase 3 (no member login, by design).
+- Tonight's signups show as "Signed up for tonight" on the Check In page.
 
 ## Volunteer milestones / badges
 
@@ -275,10 +297,15 @@ is enough for current/lapsed status.
       and merged the People tab into Guests).
 - [x] Shift schedule (shift-plan Phase 2): Schedule tab, signups, "Signed up for
       tonight" on Volunteers.
+- [x] One Check In page (Michael's feedback, Nov 11): Volunteers and Guests tabs
+      merged back into one page with Guest / Volunteer buttons.
+- [x] Turso database (libSQL) + `/api/health` for the keep-awake ping, so the
+      free Render tier keeps data and stays awake.
 - [ ] Slack signup (shift-plan Phase 3, see `docs/volunteer-shifts-plan.md`).
-- [ ] Go-live: validate the import with the real Freehub CSV, upgrade Render to
-      Starter, attach persistent disk at /var/data, set DATABASE_PATH, set up
-      off-box database backups.
+- [ ] Go-live: validate the import with the real Freehub CSV, confirm Turso is
+      connected on Render (TURSO_DATABASE_URL / TURSO_AUTH_TOKEN) and the
+      cron-job.org ping is running, set up off-box backups (e.g. a scheduled
+      `turso db shell <db> .dump`, or the JSON export).
 
 Keep this checklist updated as phases complete.
 
@@ -291,7 +318,7 @@ Keep this checklist updated as phases complete.
   and UTC midnight lands mid-shift (7–8pm Eastern), so a UTC "today" stamps the
   wrong date on evening check-ins. Pass dates explicitly to INSERTs.
 - `npm test` runs the unit tests in `tests/` (Node's built-in runner + `tsx`,
-  in-memory SQLite). Run them (plus `tsc --noEmit` and `npm run build`) before
+  in-memory libSQL). Run them (plus `tsc --noEmit` and `npm run build`) before
   any push; add a regression test when fixing a bug.
 - Keep dependencies minimal and pinned. Do not add packages without a strong reason.
 - UI should be obvious enough for a non-technical volunteer at a front desk:

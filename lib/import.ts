@@ -1,3 +1,4 @@
+import type { InValue } from '@libsql/client'
 import { db } from '@/lib/db'
 import { oneYearBefore } from '@/lib/dates'
 
@@ -119,7 +120,12 @@ function orNull(value: string | undefined): string | null {
 
 const LOGGED_BY = 'Freehub import'
 
-export function importFreehubPeople(csvText: string): ImportResult {
+// The whole import is one batch: everything it needs is read up front, every
+// decision is made in memory, then all the writes go to the database together
+// (all or nothing). A row-by-row transaction would be simpler, but Turso
+// cancels interactive transactions after 5 seconds, and with a network round
+// trip per statement a real Freehub export would take far longer than that.
+export async function importFreehubPeople(csvText: string): Promise<ImportResult> {
   const rows = parseCSV(csvText)
   if (rows.length < 2) {
     throw new Error('The file has no data rows.')
@@ -135,30 +141,41 @@ export function importFreehubPeople(csvText: string): ImportResult {
     )
   }
 
-  const findByFreehubId = db.prepare('SELECT id FROM people WHERE freehub_id = ?')
-  // Fallback for people hand-entered before the import ran: adopt them by
-  // exact name+email instead of creating a duplicate.
-  const findByNameEmail = db.prepare(
-    `SELECT id FROM people
-     WHERE freehub_id IS NULL
-       AND lower(first_name) = ? AND lower(last_name) = ?
-       AND lower(COALESCE(email, '')) = ?`
-  )
-  const adopt = db.prepare('UPDATE people SET freehub_id = ? WHERE id = ?')
-  const insertPerson = db.prepare(
-    `INSERT INTO people (
-       first_name, last_name, email, phone, is_staff, is_site_lead, email_opt_out,
-       street1, street2, city, state, postal_code, country, year_of_birth, tags,
-       freehub_id, created_at
-     ) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`
-  )
-  const hasMembershipEnding = db.prepare(
-    'SELECT 1 FROM memberships WHERE person_id = ? AND end_date = ?'
-  )
-  const insertMembership = db.prepare(
-    'INSERT INTO memberships (person_id, start_date, end_date, logged_by) VALUES (?, ?, ?, ?)'
-  )
+  const [existingPeople, existingMemberships, idRow] = await Promise.all([
+    db.all<{ id: number; freehub_id: number | null; first_name: string; last_name: string; email: string | null }>(
+      'SELECT id, freehub_id, first_name, last_name, email FROM people ORDER BY id'
+    ),
+    db.all<{ person_id: number; end_date: string }>('SELECT person_id, end_date FROM memberships'),
+    db.get<{ next_id: number }>(
+      `SELECT MAX(COALESCE((SELECT MAX(id) FROM people), 0),
+                  COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'people'), 0)) + 1 AS next_id`
+    ),
+  ])
 
+  // In-memory copies of the lookups, kept up to date as rows are processed so
+  // later rows see earlier ones (same as when each row hit the database).
+  const byFreehubId = new Map<number, number>()
+  // Fallback for people hand-entered before the import ran: adopt them by
+  // exact name+email (case-insensitive) instead of creating a duplicate. Only
+  // people without a Freehub id yet; the first match wins.
+  const byNameEmail = new Map<string, number>()
+  const nameEmailKey = (firstName: string, lastName: string, email: string | null) =>
+    JSON.stringify([firstName.toLowerCase(), lastName.toLowerCase(), (email ?? '').toLowerCase()])
+  for (const person of existingPeople) {
+    if (person.freehub_id !== null) {
+      byFreehubId.set(person.freehub_id, person.id)
+    } else {
+      const key = nameEmailKey(person.first_name, person.last_name, person.email)
+      if (!byNameEmail.has(key)) byNameEmail.set(key, person.id)
+    }
+  }
+  const membershipKeys = new Set(existingMemberships.map((m) => `${m.person_id}|${m.end_date}`))
+  // New people get their ids here so their memberships can reference them in
+  // the same batch. The batch fails (and changes nothing) if someone else
+  // adds a person in the meantime; running the import again then just works.
+  let nextId = idRow?.next_id ?? 1
+
+  const writes: { sql: string; args: InValue[] }[] = []
   const result: ImportResult = {
     peopleCreated: 0,
     peopleAlreadyPresent: 0,
@@ -166,46 +183,54 @@ export function importFreehubPeople(csvText: string): ImportResult {
     skipped: [],
   }
 
-  const run = db.transaction(() => {
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i]
-      const rowNumber = i + 1 // 1-based, counting the header row
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNumber = i + 1 // 1-based, counting the header row
 
-      if (row.length !== FREEHUB_PEOPLE_HEADER.length) {
-        result.skipped.push({ row: rowNumber, reason: `expected ${FREEHUB_PEOPLE_HEADER.length} columns, got ${row.length}` })
-        continue
+    if (row.length !== FREEHUB_PEOPLE_HEADER.length) {
+      result.skipped.push({ row: rowNumber, reason: `expected ${FREEHUB_PEOPLE_HEADER.length} columns, got ${row.length}` })
+      continue
+    }
+
+    const firstName = row[COL.first_name].trim()
+    const lastName = row[COL.last_name].trim()
+    if (!firstName || !lastName) {
+      result.skipped.push({ row: rowNumber, reason: 'missing first or last name' })
+      continue
+    }
+
+    const freehubIdRaw = row[COL.id].trim()
+    const freehubId = /^\d+$/.test(freehubIdRaw) ? Number(freehubIdRaw) : null
+    const email = orNull(row[COL.email])
+
+    let personId: number
+    const byId = freehubId !== null ? byFreehubId.get(freehubId) : undefined
+    const key = nameEmailKey(firstName, lastName, email)
+    const byName = byId === undefined ? byNameEmail.get(key) : undefined
+
+    if (byId !== undefined) {
+      personId = byId
+      result.peopleAlreadyPresent++
+    } else if (byName !== undefined) {
+      personId = byName
+      if (freehubId !== null) {
+        writes.push({ sql: 'UPDATE people SET freehub_id = ? WHERE id = ?', args: [freehubId, personId] })
+        byNameEmail.delete(key)
+        byFreehubId.set(freehubId, personId)
       }
-
-      const firstName = row[COL.first_name].trim()
-      const lastName = row[COL.last_name].trim()
-      if (!firstName || !lastName) {
-        result.skipped.push({ row: rowNumber, reason: 'missing first or last name' })
-        continue
-      }
-
-      const freehubIdRaw = row[COL.id].trim()
-      const freehubId = /^\d+$/.test(freehubIdRaw) ? Number(freehubIdRaw) : null
-      const email = orNull(row[COL.email])
-
-      let personId: number
-      const byId = freehubId !== null ? (findByFreehubId.get(freehubId) as { id: number } | undefined) : undefined
-      const byName = byId
-        ? undefined
-        : (findByNameEmail.get(firstName.toLowerCase(), lastName.toLowerCase(), (email ?? '').toLowerCase()) as
-            | { id: number }
-            | undefined)
-
-      if (byId) {
-        personId = byId.id
-        result.peopleAlreadyPresent++
-      } else if (byName) {
-        personId = byName.id
-        if (freehubId !== null) adopt.run(freehubId, personId)
-        result.peopleAlreadyPresent++
-      } else {
-        const yobRaw = row[COL.yob].trim()
-        const createdAtRaw = row[COL.created_at].trim()
-        const inserted = insertPerson.run(
+      result.peopleAlreadyPresent++
+    } else {
+      personId = nextId++
+      const yobRaw = row[COL.yob].trim()
+      const createdAtRaw = row[COL.created_at].trim()
+      writes.push({
+        sql: `INSERT INTO people (
+                id, first_name, last_name, email, phone, is_staff, is_site_lead, email_opt_out,
+                street1, street2, city, state, postal_code, country, year_of_birth, tags,
+                freehub_id, created_at
+              ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`,
+        args: [
+          personId,
           firstName,
           lastName,
           email,
@@ -221,29 +246,38 @@ export function importFreehubPeople(csvText: string): ImportResult {
           /^\d{4}$/.test(yobRaw) ? Number(yobRaw) : null,
           orNull(row[COL.tag_list]),
           freehubId,
-          /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(createdAtRaw) ? `${createdAtRaw}:00` : null
-        )
-        personId = Number(inserted.lastInsertRowid)
-        result.peopleCreated++
+          /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(createdAtRaw) ? `${createdAtRaw}:00` : null,
+        ],
+      })
+      if (freehubId !== null) {
+        byFreehubId.set(freehubId, personId)
+      } else if (!byNameEmail.has(key)) {
+        byNameEmail.set(key, personId)
       }
+      result.peopleCreated++
+    }
 
-      // Freehub's people export carries only the latest membership expiry;
-      // reconstruct that one membership (start = one year before end).
-      const expiresOn = row[COL.membership_expires_on].trim()
-      if (expiresOn) {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(expiresOn)) {
-          result.skipped.push({
-            row: rowNumber,
-            reason: `person imported, but membership_expires_on "${expiresOn}" is not a YYYY-MM-DD date — no membership created`,
-          })
-        } else if (!hasMembershipEnding.get(personId, expiresOn)) {
-          insertMembership.run(personId, oneYearBefore(expiresOn), expiresOn, LOGGED_BY)
-          result.membershipsCreated++
-        }
+    // Freehub's people export carries only the latest membership expiry;
+    // reconstruct that one membership (start = one year before end).
+    const expiresOn = row[COL.membership_expires_on].trim()
+    if (expiresOn) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(expiresOn)) {
+        result.skipped.push({
+          row: rowNumber,
+          reason: `person imported, but membership_expires_on "${expiresOn}" is not a YYYY-MM-DD date — no membership created`,
+        })
+      } else if (!membershipKeys.has(`${personId}|${expiresOn}`)) {
+        writes.push({
+          sql: 'INSERT INTO memberships (person_id, start_date, end_date, logged_by) VALUES (?, ?, ?, ?)',
+          args: [personId, oneYearBefore(expiresOn), expiresOn, LOGGED_BY],
+        })
+        membershipKeys.add(`${personId}|${expiresOn}`)
+        result.membershipsCreated++
       }
     }
-  })
-  run()
+  }
+
+  await db.batch(writes)
 
   return result
 }

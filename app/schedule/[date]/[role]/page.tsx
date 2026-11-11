@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { searchPeople, SEARCH_LIMIT } from '@/lib/people'
-import { getTopFlagLevel } from '@/lib/flags'
 import { formatShiftDate, getShiftRole, getSignupsForDate, isOpenShiftDate } from '@/lib/shifts'
 import { FlagPill } from '../../../flag-pill'
 import { PeopleSearch } from '../../../people/people-search'
@@ -20,10 +19,10 @@ export default async function ShiftSignupPage({
   const role = getShiftRole(roleId)
   if (!role || !isOpenShiftDate(date)) notFound()
 
-  const current = getSignupsForDate(date).filter((signup) => signup.role_id === role.id)
+  const current = (await getSignupsForDate(date)).filter((signup) => signup.role_id === role.id)
   const signedUpIds = new Set(current.map((signup) => signup.person_id))
   const isFull = role.maxSlots !== null && current.length >= role.maxSlots
-  const people = isFull ? [] : searchPeople(q, { volunteersOnly: true, shiftLeadsOnly: role.shiftLeadsOnly })
+  const people = isFull ? [] : await searchPeople(q, { volunteersOnly: true, shiftLeadsOnly: role.shiftLeadsOnly })
   const backHref = `/schedule#night-${date}`
 
   return (
@@ -50,7 +49,7 @@ export default async function ShiftSignupPage({
           <PeopleSearch query={q} path={`/schedule/${date}/${role.id}`} />
           <ul className="person-list">
             {people.map((person) => {
-              const flagLevel = getTopFlagLevel(person.id)
+              const flagLevel = person.flag_level
               return (
                 <li key={person.id} className="person-row">
                   <span className="name">

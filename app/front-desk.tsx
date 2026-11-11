@@ -1,6 +1,6 @@
 import Link from 'next/link'
-import { getPeopleCheckedInToday, searchPeople, SEARCH_LIMIT, type CheckedInPerson } from '@/lib/people'
-import { getTopFlagLevel } from '@/lib/flags'
+import type { ReactNode } from 'react'
+import { getPeopleCheckedInToday, searchPeople, SEARCH_LIMIT, type CheckedInPerson, type SearchResult } from '@/lib/people'
 import { FlagPill } from './flag-pill'
 import { CheckInForm } from './people/checkin-form'
 import { PeopleSearch } from './people/people-search'
@@ -9,76 +9,46 @@ import { ExpectedTonight, type ExpectedRow } from './expected-tonight'
 import { getExpectedVolunteers, getShiftRole, getSignupsForDate, upcomingShiftDates } from '@/lib/shifts'
 import { todayISO } from '@/lib/dates'
 
-export type FrontDeskTab = 'volunteers' | 'guests'
+export const FRONT_DESK_PATH = '/checkin'
 
-// The two front-desk tabs share one layout: search on the left, today's
-// check-ins for that tab on the right.
-// - Volunteers: searches only people marked Volunteer; Check In logs a
-//   2.5-hour volunteer session.
-// - Guests: searches everyone (volunteers too, on nights they're just working
-//   on their own bike); Check In logs a plain visit. Also the place to add a
-//   new person (the old People tab was merged in here).
-export function FrontDesk({ tab, query }: { tab: FrontDeskTab; query: string }) {
-  const isVolunteers = tab === 'volunteers'
-  const path = `/${tab}`
-  const people = searchPeople(query, { volunteersOnly: isVolunteers })
-  const checkedInToday = getPeopleCheckedInToday()
+// The front desk: one page for everyone (Michael's feedback, Nov 2026: one
+// tab, not separate Volunteers and Guests tabs). Search finds everyone. People
+// marked Volunteer get two buttons, Guest (a plain visit, e.g. working on their
+// own bike) and Volunteer (a 2.5-hour volunteer session); everyone else gets
+// one Check In button. Today's check-ins show as two lists, Volunteers and
+// Guests, with tonight's shift signups above them.
+export async function FrontDesk({ query }: { query: string }) {
+  const [people, checkedInToday] = await Promise.all([searchPeople(query), getPeopleCheckedInToday()])
   const todayById = new Map(checkedInToday.map((person) => [person.id, person]))
-  const roster = checkedInToday.filter((person) => (person.is_volunteer_visit === 1) === isVolunteers)
+  const volunteersHere = checkedInToday.filter((person) => person.is_volunteer_visit === 1)
+  const guestsHere = checkedInToday.filter((person) => person.is_volunteer_visit !== 1)
+  const searched = query.trim() !== ''
 
   return (
     <main>
-      <h1 className="visually-hidden">{isVolunteers ? 'Volunteers' : 'Guests'}</h1>
+      <h1 className="visually-hidden">Check In</h1>
       <div className="shift-layout">
         <section className="shift-lookup">
-          <h2>{isVolunteers ? 'Check in a volunteer' : 'Check in a guest'}</h2>
-          <PeopleSearch query={query} path={path} />
+          <h2>Check in</h2>
+          <PeopleSearch query={query} path={FRONT_DESK_PATH} />
 
           <ul className="person-list">
-            {people.map((person) => {
-              const flagLevel = getTopFlagLevel(person.id)
-              const status = hereTodayLabel(todayById.get(person.id), isVolunteers)
-              return (
-                <li key={person.id} className="person-row">
-                  <span className="name">
-                    <Link href={`/people/${person.id}`}>
-                      {person.first_name} {person.last_name}
-                    </Link>
-                    {flagLevel && <FlagPill level={flagLevel} />}
-                    {status && <span className="here-today">{status}</span>}
-                  </span>
-                  {flagLevel === 'banned' ? (
-                    // Banned people go through their profile, where the
-                    // blocking modal must be dismissed before check-in.
-                    <Link href={`/people/${person.id}`} className="btn-secondary">
-                      See why
-                    </Link>
-                  ) : (
-                    <CheckInForm personId={person.id} volunteer={isVolunteers ? 'yes' : 'no'} />
-                  )}
-                </li>
-              )
-            })}
-            {people.length === 0 && query.trim() && (
-              isVolunteers ? (
-                <p className="muted">
-                  No volunteers match. Only people marked Volunteer on their profile show here.{' '}
-                  <Link href={`/guests?q=${encodeURIComponent(query.trim())}`}>Search Guests instead</Link>.
-                </p>
-              ) : (
-                <div className="no-match">
-                  <p className="muted">No one matches &ldquo;{query.trim()}&rdquo;.</p>
-                  <Link href="/people/new" className="btn-primary">
-                    + Add new person
-                  </Link>
-                </div>
-              )
+            {people.map((person) => (
+              <SearchRow key={person.id} person={person} here={todayById.get(person.id)} />
+            ))}
+            {people.length === 0 && searched && (
+              <div className="no-match">
+                <p className="muted">No one matches &ldquo;{query.trim()}&rdquo;.</p>
+                <Link href="/people/new" className="btn-primary">
+                  + Add new person
+                </Link>
+              </div>
             )}
-            {people.length === 0 && !query.trim() && (
+            {people.length === 0 && !searched && (
               <p className="muted">
-                {isVolunteers
-                  ? 'Search for a volunteer by name or email to check them in for a volunteer session (2.5 hours).'
-                  : 'Search for a person by name or email to check them in.'}
+                Search for a person by name or email to check them in. People marked Volunteer get two
+                buttons: <strong>Guest</strong> (working on their own bike) or <strong>Volunteer</strong> (a
+                2.5-hour volunteer session).
               </p>
             )}
           </ul>
@@ -87,9 +57,9 @@ export function FrontDesk({ tab, query }: { tab: FrontDeskTab; query: string }) 
               Showing the first {SEARCH_LIMIT} matches. Keep typing to narrow it down.
             </p>
           )}
-          {/* Common names always match someone, so adding is never hidden on
-              Guests; the big button above covers the no-match case. */}
-          {!isVolunteers && !(people.length === 0 && query.trim()) && (
+          {/* Common names always match someone, so adding is never hidden;
+              the big button above covers the no-match case. */}
+          {!(people.length === 0 && searched) && (
             <p className="add-person-link">
               Not listed? <Link href="/people/new">Add a new person</Link>
             </p>
@@ -97,32 +67,69 @@ export function FrontDesk({ tab, query }: { tab: FrontDeskTab; query: string }) 
         </section>
 
         <div className="shift-side">
-          {isVolunteers && <TonightSignups />}
-          <TodayRoster tab={tab} people={roster} />
+          <TonightSignups />
+          <TodayRoster group="volunteers" people={volunteersHere} />
+          <TodayRoster group="guests" people={guestsHere} />
         </div>
       </div>
     </main>
   )
 }
 
-// A short note in search results for people already checked in today, so a
-// volunteer who's on the other tab tonight isn't a mystery.
-function hereTodayLabel(visit: CheckedInPerson | undefined, isVolunteersTab: boolean): string | null {
-  if (!visit) return null
-  const volunteering = visit.is_volunteer_visit === 1
-  if (volunteering === isVolunteersTab) return 'Checked in'
-  return volunteering ? 'Checked in as a volunteer' : 'Checked in as a guest'
+function SearchRow({ person, here }: { person: SearchResult; here: CheckedInPerson | undefined }) {
+  const name = `${person.first_name} ${person.last_name}`
+  const isVolunteer = person.is_staff === 1
+  const hereAs = here ? (here.is_volunteer_visit === 1 ? 'volunteer' : 'guest') : null
+
+  let actions: ReactNode
+  if (person.flag_level === 'banned') {
+    // Banned people go through their profile, where the blocking modal must
+    // be dismissed before check-in.
+    actions = (
+      <Link href={`/people/${person.id}`} className="btn-secondary">
+        See why
+      </Link>
+    )
+  } else {
+    // Here as a volunteer: nothing to do (changes happen in today's lists).
+    // Here as a guest: a Volunteer-marked person can still switch to a
+    // volunteer session. Always the same form, so a milestone celebration
+    // survives the buttons changing after a check-in.
+    const mode =
+      hereAs === 'volunteer'
+        ? 'none'
+        : hereAs === 'guest'
+          ? isVolunteer
+            ? 'yes'
+            : 'none'
+          : isVolunteer
+            ? 'choose'
+            : 'no'
+    actions = <CheckInForm personId={person.id} personName={name} volunteer={mode} />
+  }
+
+  return (
+    <li className="person-row">
+      <span className="name">
+        <Link href={`/people/${person.id}`}>{name}</Link>
+        {person.flag_level && <FlagPill level={person.flag_level} />}
+        {hereAs && <span className="here-today">Here as a {hereAs}</span>}
+      </span>
+      {actions}
+    </li>
+  )
 }
 
-// "Signed up for tonight" on the Volunteers tab. Hidden on nights that aren't
-// shift nights, unless someone is signed up anyway.
-function TonightSignups() {
+// "Signed up for tonight". Hidden on nights that aren't shift nights, unless
+// someone is signed up anyway.
+async function TonightSignups() {
   const today = todayISO()
-  const signedUpCount = new Set(getSignupsForDate(today).map((signup) => signup.person_id)).size
+  const [signups, expected] = await Promise.all([getSignupsForDate(today), getExpectedVolunteers(today)])
+  const signedUpCount = new Set(signups.map((signup) => signup.person_id)).size
   const isShiftNight = upcomingShiftDates(today)[0] === today
   if (!isShiftNight && signedUpCount === 0) return null
 
-  const rows: ExpectedRow[] = getExpectedVolunteers(today).map((entry) => ({
+  const rows: ExpectedRow[] = expected.map((entry) => ({
     personId: entry.person_id,
     name: `${entry.first_name} ${entry.last_name}`,
     roleLabels: entry.role_ids.map((roleId) => getShiftRole(roleId)?.label ?? roleId),

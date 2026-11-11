@@ -52,40 +52,40 @@ export type ReportMetrics = {
   lapsedMembers: number
 }
 
-export function getReportMetrics(period: Period): ReportMetrics {
+export async function getReportMetrics(period: Period): Promise<ReportMetrics> {
   const { start, end } = getPeriodRange(period)
 
-  const visitStats = db
-    .prepare(
+  const [visitStats, newMembers, lapsedMembers] = await Promise.all([
+    db.get<{ total: number; uniqueVisitors: number; volunteerSessions: number | null }>(
       `SELECT COUNT(*) as total, COUNT(DISTINCT person_id) as uniqueVisitors, SUM(is_volunteer) as volunteerSessions
-       FROM visits WHERE visit_date BETWEEN ? AND ?`
-    )
-    .get(start, end) as { total: number; uniqueVisitors: number; volunteerSessions: number | null }
-
-  const newMembers = db
-    .prepare(
+       FROM visits WHERE visit_date BETWEEN ? AND ?`,
+      start,
+      end
+    ),
+    db.get<{ count: number }>(
       `SELECT COUNT(*) as count FROM (
          SELECT person_id, MIN(start_date) as first_start FROM memberships GROUP BY person_id
-       ) t WHERE t.first_start BETWEEN ? AND ?`
-    )
-    .get(start, end) as { count: number }
-
-  const lapsedMembers = db
-    .prepare(
+       ) t WHERE t.first_start BETWEEN ? AND ?`,
+      start,
+      end
+    ),
+    db.get<{ count: number }>(
       `SELECT COUNT(*) as count FROM (
          SELECT person_id, MAX(end_date) as latest_end FROM memberships GROUP BY person_id
-       ) t WHERE t.latest_end BETWEEN ? AND ?`
-    )
-    .get(start, end) as { count: number }
+       ) t WHERE t.latest_end BETWEEN ? AND ?`,
+      start,
+      end
+    ),
+  ])
 
-  const volunteerSessions = visitStats.volunteerSessions ?? 0
+  const volunteerSessions = visitStats?.volunteerSessions ?? 0
 
   return {
-    totalVisits: visitStats.total,
-    uniqueVisitors: visitStats.uniqueVisitors,
+    totalVisits: visitStats?.total ?? 0,
+    uniqueVisitors: visitStats?.uniqueVisitors ?? 0,
     volunteerSessions,
     volunteerHours: volunteerSessions * HOURS_PER_VOLUNTEER_VISIT,
-    newMembers: newMembers.count,
-    lapsedMembers: lapsedMembers.count,
+    newMembers: newMembers?.count ?? 0,
+    lapsedMembers: lapsedMembers?.count ?? 0,
   }
 }

@@ -13,7 +13,7 @@ import {
 } from '../lib/lapse-emails'
 import { sendEmail } from '../lib/email'
 
-function makePerson(firstName: string, overrides: Partial<PersonInput> = {}): number {
+async function makePerson(firstName: string, overrides: Partial<PersonInput> = {}): Promise<number> {
   const input: PersonInput = {
     firstName,
     lastName: 'LapseTest',
@@ -32,11 +32,11 @@ function makePerson(firstName: string, overrides: Partial<PersonInput> = {}): nu
     tags: null,
     ...overrides,
   }
-  return createPerson(input)
+  return await createPerson(input)
 }
 
-function lapsedMembership(personId: number, daysAgo: number) {
-  createMembership({
+async function lapsedMembership(personId: number, daysAgo: number) {
+  await createMembership({
     personId,
     startDate: addDaysISO(todayISO(), -daysAgo - 365),
     endDate: addDaysISO(todayISO(), -daysAgo),
@@ -44,86 +44,86 @@ function lapsedMembership(personId: number, daysAgo: number) {
   })
 }
 
-const inQueue = (id: number) => getLapseEmailQueue().some((p) => p.id === id)
+const inQueue = async (id: number) => (await getLapseEmailQueue()).some((p) => p.id === id)
 
-test('queues a person lapsed past the grace period, with the right details', () => {
-  const id = makePerson('Due')
-  lapsedMembership(id, LAPSE_GRACE_DAYS + 10)
-  const entry = getLapseEmailQueue().find((p) => p.id === id)
+test('queues a person lapsed past the grace period, with the right details', async () => {
+  const id = await makePerson('Due')
+  await lapsedMembership(id, LAPSE_GRACE_DAYS + 10)
+  const entry = (await getLapseEmailQueue()).find((p) => p.id === id)
   assert.ok(entry)
   assert.equal(entry.email, 'due@example.com')
   assert.equal(entry.latest_end_date, addDaysISO(todayISO(), -(LAPSE_GRACE_DAYS + 10)))
 })
 
-test('grace period: lapsed less than LAPSE_GRACE_DAYS ago is not queued yet', () => {
-  const id = makePerson('TooSoon')
-  lapsedMembership(id, LAPSE_GRACE_DAYS - 2)
-  assert.ok(!inQueue(id))
+test('grace period: lapsed less than LAPSE_GRACE_DAYS ago is not queued yet', async () => {
+  const id = await makePerson('TooSoon')
+  await lapsedMembership(id, LAPSE_GRACE_DAYS - 2)
+  assert.ok(!await inQueue(id))
 })
 
-test('lapsed exactly LAPSE_GRACE_DAYS ago is queued (boundary)', () => {
-  const id = makePerson('Boundary')
-  lapsedMembership(id, LAPSE_GRACE_DAYS)
-  assert.ok(inQueue(id))
+test('lapsed exactly LAPSE_GRACE_DAYS ago is queued (boundary)', async () => {
+  const id = await makePerson('Boundary')
+  await lapsedMembership(id, LAPSE_GRACE_DAYS)
+  assert.ok(await inQueue(id))
 })
 
-test('excludes: active members, no email, opted out', () => {
-  const activeId = makePerson('Active')
-  createMembership({ personId: activeId, startDate: addDaysISO(todayISO(), -30), endDate: addDaysISO(todayISO(), 335), loggedBy: null })
-  assert.ok(!inQueue(activeId))
+test('excludes: active members, no email, opted out', async () => {
+  const activeId = await makePerson('Active')
+  await createMembership({ personId: activeId, startDate: addDaysISO(todayISO(), -30), endDate: addDaysISO(todayISO(), 335), loggedBy: null })
+  assert.ok(!await inQueue(activeId))
 
-  const noEmailId = makePerson('NoEmail', { email: null })
-  lapsedMembership(noEmailId, 60)
-  assert.ok(!inQueue(noEmailId))
+  const noEmailId = await makePerson('NoEmail', { email: null })
+  await lapsedMembership(noEmailId, 60)
+  assert.ok(!await inQueue(noEmailId))
 
-  const optedOutId = makePerson('OptedOut', { emailOptOut: true })
-  lapsedMembership(optedOutId, 60)
-  assert.ok(!inQueue(optedOutId))
+  const optedOutId = await makePerson('OptedOut', { emailOptOut: true })
+  await lapsedMembership(optedOutId, 60)
+  assert.ok(!await inQueue(optedOutId))
 })
 
-test('active banned flag excludes; resolving it re-queues', () => {
-  const id = makePerson('Banned')
-  lapsedMembership(id, 60)
-  createFlag({ personId: id, level: 'banned', note: 'test', loggedBy: null })
-  assert.ok(!inQueue(id))
+test('active banned flag excludes; resolving it re-queues', async () => {
+  const id = await makePerson('Banned')
+  await lapsedMembership(id, 60)
+  await createFlag({ personId: id, level: 'banned', note: 'test', loggedBy: null })
+  assert.ok(!await inQueue(id))
 
-  const flag = getActiveFlags(id).find((f) => f.level === 'banned')!
-  resolveFlag(flag.id)
-  assert.ok(inQueue(id))
+  const flag = (await getActiveFlags(id)).find((f) => f.level === 'banned')!
+  await resolveFlag(flag.id)
+  assert.ok(await inQueue(id))
 })
 
-test('a watch flag does not block the email', () => {
-  const id = makePerson('Watched')
-  lapsedMembership(id, 60)
-  createFlag({ personId: id, level: 'watch', note: 'test', loggedBy: null })
-  assert.ok(inQueue(id))
+test('a watch flag does not block the email', async () => {
+  const id = await makePerson('Watched')
+  await lapsedMembership(id, 60)
+  await createFlag({ personId: id, level: 'watch', note: 'test', loggedBy: null })
+  assert.ok(await inQueue(id))
 })
 
-test('recording removes from queue; renew-then-lapse-again re-queues; UNIQUE backstop', () => {
-  const id = makePerson('Cycle')
+test('recording removes from queue; renew-then-lapse-again re-queues; UNIQUE backstop', async () => {
+  const id = await makePerson('Cycle')
   const firstEnd = addDaysISO(todayISO(), -400)
-  createMembership({ personId: id, startDate: addDaysISO(todayISO(), -765), endDate: firstEnd, loggedBy: null })
-  assert.ok(inQueue(id))
+  await createMembership({ personId: id, startDate: addDaysISO(todayISO(), -765), endDate: firstEnd, loggedBy: null })
+  assert.ok(await inQueue(id))
 
-  recordLapseEmail({ personId: id, endDate: firstEnd, status: 'dry_run', loggedBy: 'Lead' })
-  assert.ok(!inQueue(id))
-  assert.throws(() => recordLapseEmail({ personId: id, endDate: firstEnd, status: 'sent', loggedBy: null }))
+  await recordLapseEmail({ personId: id, endDate: firstEnd, status: 'dry_run', loggedBy: 'Lead' })
+  assert.ok(!await inQueue(id))
+  await assert.rejects(() => recordLapseEmail({ personId: id, endDate: firstEnd, status: 'sent', loggedBy: null }))
 
   // Renewed after that lapse, then lapsed again — a new notice is due.
   const secondEnd = addDaysISO(todayISO(), -30)
-  createMembership({ personId: id, startDate: addDaysISO(todayISO(), -395), endDate: secondEnd, loggedBy: null })
-  const entry = getLapseEmailQueue().find((p) => p.id === id)
+  await createMembership({ personId: id, startDate: addDaysISO(todayISO(), -395), endDate: secondEnd, loggedBy: null })
+  const entry = (await getLapseEmailQueue()).find((p) => p.id === id)
   assert.ok(entry)
   assert.equal(entry.latest_end_date, secondEnd)
 
-  const log = getRecentLapseEmails()
+  const log = await getRecentLapseEmails()
   const mine = log.find((e) => e.person_id === id)
   assert.ok(mine)
   assert.equal(mine.status, 'dry_run')
   assert.equal(mine.logged_by, 'Lead')
 })
 
-test('renderLapseEmail includes the name and expiry date', () => {
+test('renderLapseEmail includes the name and expiry date', async () => {
   const { subject, text } = renderLapseEmail('Jane', '2026-01-15')
   assert.match(subject, /membership has expired/)
   assert.match(text, /Hi Jane,/)
@@ -132,12 +132,12 @@ test('renderLapseEmail includes the name and expiry date', () => {
 
 test('clearSampleData removes sample people even after a lapse email was recorded', async () => {
   const { seedSampleData, clearSampleData } = await import('../lib/seed')
-  seedSampleData()
-  const larry = getLapseEmailQueue().find((p) => p.first_name === 'Sample Larry')
+  await seedSampleData()
+  const larry = (await getLapseEmailQueue()).find((p) => p.first_name === 'Sample Larry')
   assert.ok(larry, 'sample Larry should be queued')
-  recordLapseEmail({ personId: larry.id, endDate: larry.latest_end_date, status: 'dry_run', loggedBy: null })
-  assert.doesNotThrow(() => clearSampleData())
-  assert.ok(!getRecentLapseEmails().some((e) => e.person_id === larry.id))
+  await recordLapseEmail({ personId: larry.id, endDate: larry.latest_end_date, status: 'dry_run', loggedBy: null })
+  await assert.doesNotReject(() => clearSampleData())
+  assert.ok(!(await getRecentLapseEmails()).some((e) => e.person_id === larry.id))
 })
 
 test('sendEmail dry-runs when no RESEND_API_KEY is set', async () => {

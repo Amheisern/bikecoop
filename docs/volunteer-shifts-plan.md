@@ -17,7 +17,13 @@ direction, not an approved build. Confirm its open questions with Nick first.
   cancel).
 - Nick is a Slack workspace admin and can install the app.
 
-## Phase 1: Volunteers and Guests tabs (built)
+## Phase 1: Volunteers and Guests tabs (built, then merged back)
+
+**Superseded Nov 11, 2026:** after Michael's feedback the two tabs became one
+Check In page (`/checkin`): one search over everyone, Guest and Volunteer
+buttons for people marked Volunteer, one Check In button for everyone else,
+and today's Volunteers and Guests lists side by side. See CLAUDE.md, "Front
+desk: one Check In page". The notes below are the original Phase 1 record.
 
 Goal: replace the single Shift page with two front-desk tabs. No schema change.
 
@@ -83,9 +89,14 @@ Answered by Nick (Nov 3, 2026):
   Tapping signs up, tapping again cancels, and the message updates in place.
 - Slack users are matched to people by email (`users:read.email`). Unmatched users
   get a reply asking them to see a shift lead.
-- Needs Render Starter plus a persistent disk at `/var/data` with `DATABASE_PATH`
-  set. The free tier sleeps, which breaks Slack's 3-second response limit, and its
-  database resets on every deploy.
+- **Hosting (updated Nov 11, 2026):** Nick chose free Render + a keep-awake ping
+  + Turso to build and test this before paying. The data lives in Turso, so
+  deploys and restarts no longer wipe it, and cron-job.org visits `/api/health`
+  every 10 minutes so the app doesn't sleep (Slack gives up after 3 seconds; a
+  sleeping free service takes about a minute to wake). Render can still restart
+  a free service now and then, so a tap can occasionally fail; Render Starter
+  (about $7/month, never sleeps) is the upgrade if that matters, and Turso keeps
+  working there with no code change.
 - Needs `SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN`. No SDK: plain `fetch`, like
   `lib/email.ts`.
 - Open question: how the weekly message gets posted. The app has no scheduler by
@@ -100,4 +111,6 @@ Answered by Nick (Nov 3, 2026):
   https://bikecoop-s8tg.onrender.com. Build `npm ci && npm run build`, start
   `npm run start`, `NODE_VERSION=22`.
 - `lib/db.ts` uses an in-memory database during `next build` (`NEXT_PHASE`) so
-  parallel build workers don't hit SQLITE_BUSY.
+  parallel build workers don't hit SQLITE_BUSY (or Turso).
+- Database: Turso, via `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` on Render
+  (Nov 11, 2026). Keep-awake: cron-job.org, every 10 minutes, `/api/health`.

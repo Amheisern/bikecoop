@@ -605,8 +605,8 @@ button:disabled {
   stroke-linecap: round;
 }
 
-/* Right column of the front desk: "Signed up for tonight" (Volunteers tab
-   only) above today's check-ins. */
+/* Right column of the Check In page: "Signed up for tonight" above today's
+   volunteers and guests. */
 .shift-side {
   display: grid;
   gap: 1.75rem;
@@ -779,7 +779,7 @@ button:disabled {
   }
 }
 
-/* Guests tab: adding someone new, when search doesn't find them. */
+/* Check In page: adding someone new, when search doesn't find them. */
 .no-match {
   display: grid;
   justify-items: start;
@@ -795,7 +795,7 @@ button:disabled {
   font-weight: 700;
 }
 
-/* "Checked in" note next to a name in front-desk search results. */
+/* "Here as a guest/volunteer" note next to a name in Check In search results. */
 .here-today {
   margin-left: 0.5rem;
   font-size: 0.75rem;
@@ -918,7 +918,7 @@ button:disabled {
     gap: 0.25rem;
   }
 
-  /* Four tabs have to fit on a phone: tighter type, and the bike badge goes. */
+  /* The tabs have to fit on a phone: tighter type, and the bike badge goes. */
   .top-bar .app-tabs::before {
     display: none;
   }
@@ -965,13 +965,6 @@ button:disabled {
   flex-wrap: wrap;
 }
 
-/* Narrow phones: four tabs in one row run together, so use a 2x2 grid. */
-@media (max-width: 420px) {
-  .top-bar .app-tabs {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
 
 .muted {
   color: var(--muted);

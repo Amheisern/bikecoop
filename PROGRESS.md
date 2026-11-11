@@ -858,3 +858,48 @@ hazard-stripe banner (Wendy), the new-person form, and Reports' `.dense`
 scope — plus a 390px mobile pass on the profile and Reports. Zero console
 errors. Confirmed the badge fix specifically: tags render as readable chips,
 milestones keep their bold yellow-achieved treatment.
+
+## One Check In page + Turso database + keep-awake health check (complete)
+
+**Date:** 2026-11-11
+
+### Why
+
+- Michael's feedback: don't have two front-desk tabs (Volunteers and Guests).
+- Nick wants to build and test Slack signup on Render's free tier before
+  paying. Free Render wipes local files on every deploy and restart, and
+  sleeps after 15 idle minutes (about a minute to wake; Slack gives up after
+  3 seconds). Nick chose free Render + a keep-awake ping + Turso (free, SQLite
+  compatible) over MongoDB (would mean rewriting every query) and Render
+  Starter + disk (about $7/month).
+
+### What changed
+
+- **Check In page** (`/checkin`, `app/front-desk.tsx`): one search over
+  everyone. Volunteer-marked people get Guest and Volunteer buttons, everyone
+  else one Check In button, banned people "See why". Right column: Signed up
+  for tonight, Volunteers here today, Guests here today. `/`, `/guests`,
+  `/volunteers`, `/shift`, `/people` redirect here. Tabs: Check In, Schedule,
+  Reports.
+- **Database** (`lib/db.ts`): `better-sqlite3` replaced by `@libsql/client`
+  0.18.0. Turso when `TURSO_DATABASE_URL` is set, else a local file
+  (`DATABASE_PATH`), `:memory:` for tests and during `next build`. Same schema
+  and SQL; every query is now async (`db.all/get/run`, plus `db.batch` and a
+  short `db.transaction`). Migrations run once per process on the first query.
+- The export (`getExportRows`) now uses two queries total instead of three per
+  person, and the legacy import is one all-or-nothing batch with ids assigned up
+  front (Turso cancels interactive transactions after 5 seconds, and each
+  statement is a network round trip). Search results carry the flag level, so
+  no per-row flag lookups.
+- **`/api/health`**: public, no database, `{ ok: true }`, for cron-job.org.
+
+### Verified
+
+`npm test` 65/65 (adds tests for the database choice and two for the batched
+import), `tsc --noEmit`, `npm run lint` (only the 2 existing warnings),
+`npm run build`. A one-off type-aware lint found no un-awaited database calls.
+Browser click-through against a local libSQL file: every check-in path, the
+milestone toast, move/check out, Signed up for tonight, add person, all
+redirects, profile, schedule, reports, CSV/JSON export, and no sideways scroll
+at 390px and 320px. Not yet run against a real Turso database (needs Nick's
+account); first check after setup: `/api/health`, then log in and load a page.

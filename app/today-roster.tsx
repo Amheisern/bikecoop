@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import type { CheckedInPerson } from '@/lib/people'
-import type { FrontDeskTab } from './front-desk'
 import { FlagPill } from './flag-pill'
 import {
   checkOutPersonTodayAction,
@@ -19,15 +18,16 @@ type DialogState =
   | { kind: 'demote'; person: CheckedInPerson }
   | null
 
-// Today's check-ins for one front-desk tab. Each tile can move the person to
-// the other tab for today (with a confirmation) or be removed.
-export function TodayRoster({ tab, people }: { tab: FrontDeskTab; people: CheckedInPerson[] }) {
+// Today's check-ins for one group on the Check In page (volunteers or guests).
+// Each tile can move the person to the other group for today (with a
+// confirmation) or be removed.
+export function TodayRoster({ group, people }: { group: 'volunteers' | 'guests'; people: CheckedInPerson[] }) {
   const router = useRouter()
   const [dialog, setDialog] = useState<DialogState>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [celebration, setCelebration] = useState<string | null>(null)
-  const isVolunteers = tab === 'volunteers'
+  const isVolunteers = group === 'volunteers'
 
   async function perform(action: () => Promise<string | null | { error?: string; celebration?: string }>) {
     setPending(true)
@@ -152,7 +152,7 @@ export function TodayRoster({ tab, people }: { tab: FrontDeskTab; people: Checke
                 <h2 id="shift-dialog-title">Move to Volunteers?</h2>
                 <p>
                   {dialog.person.first_name} {dialog.person.last_name}&apos;s visit will count as a
-                  2.5-hour volunteer session, and they&apos;ll move to the Volunteers tab.
+                  2.5-hour volunteer session, and they&apos;ll move to Volunteers here today.
                 </p>
                 <div className="shift-dialog-actions">
                   <button
@@ -179,7 +179,7 @@ export function TodayRoster({ tab, people }: { tab: FrontDeskTab; people: Checke
                 <p>
                   {dialog.person.first_name} {dialog.person.last_name}&apos;s visit will no longer
                   count as a volunteer session, removing 2.5 volunteer hours, and they&apos;ll move
-                  to the Guests tab.
+                  to Guests here today.
                 </p>
                 <div className="shift-dialog-actions">
                   <button

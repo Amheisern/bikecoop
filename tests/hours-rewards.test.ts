@@ -14,7 +14,7 @@ import {
 } from '../lib/hours'
 import { getRewardStatuses, redeemReward, REWARD_TIERS } from '../lib/rewards'
 
-function makePerson(firstName: string): number {
+async function makePerson(firstName: string): Promise<number> {
   const input: PersonInput = {
     firstName,
     lastName: 'HoursTest',
@@ -32,27 +32,28 @@ function makePerson(firstName: string): number {
     yearOfBirth: null,
     tags: null,
   }
-  return createPerson(input)
+  return await createPerson(input)
 }
 
-function backdatedVisit(personId: number, dayOffset: number, isVolunteer: boolean) {
-  db.prepare('INSERT INTO visits (person_id, visit_date, is_volunteer) VALUES (?, ?, ?)').run(
+async function backdatedVisit(personId: number, dayOffset: number, isVolunteer: boolean) {
+  await db.run(
+    'INSERT INTO visits (person_id, visit_date, is_volunteer) VALUES (?, ?, ?)',
     personId,
     addDaysISO(todayISO(), dayOffset),
     isVolunteer ? 1 : 0
   )
 }
 
-test('volunteer hours = volunteer visits × 2.5; foot traffic counts all visits', () => {
-  const id = makePerson('Counter')
-  backdatedVisit(id, -1, true)
-  backdatedVisit(id, -2, true)
-  backdatedVisit(id, -3, false)
-  assert.equal(getVolunteerHours(id), 2 * HOURS_PER_VOLUNTEER_VISIT)
-  assert.equal(getFootTraffic(id), 3)
+test('volunteer hours = volunteer visits × 2.5; foot traffic counts all visits', async () => {
+  const id = await makePerson('Counter')
+  await backdatedVisit(id, -1, true)
+  await backdatedVisit(id, -2, true)
+  await backdatedVisit(id, -3, false)
+  assert.equal(await getVolunteerHours(id), 2 * HOURS_PER_VOLUNTEER_VISIT)
+  assert.equal(await getFootTraffic(id), 3)
 })
 
-test('milestone helpers', () => {
+test('milestone helpers', async () => {
   assert.equal(getCurrentMilestone(0), null)
   assert.equal(getCurrentMilestone(5), 5)
   assert.equal(getCurrentMilestone(12.5), 10)
@@ -65,34 +66,34 @@ test('milestone helpers', () => {
   assert.equal(getCrossedMilestone(27.5, 30), 30)
 })
 
-test('volunteer roster is sorted by hours descending and omits non-volunteers', () => {
-  const highId = makePerson('RosterHigh')
-  const lowId = makePerson('RosterLow')
-  const noneId = makePerson('RosterNone')
-  ;[-1, -2, -3].forEach((offset) => backdatedVisit(highId, offset, true))
-  backdatedVisit(lowId, -1, true)
-  backdatedVisit(noneId, -1, false)
+test('volunteer roster is sorted by hours descending and omits non-volunteers', async () => {
+  const highId = await makePerson('RosterHigh')
+  const lowId = await makePerson('RosterLow')
+  const noneId = await makePerson('RosterNone')
+  for (const offset of [-1, -2, -3]) await backdatedVisit(highId, offset, true)
+  await backdatedVisit(lowId, -1, true)
+  await backdatedVisit(noneId, -1, false)
 
-  const roster = getVolunteerRoster()
+  const roster = await getVolunteerRoster()
   const ids = roster.map((r) => r.id)
   assert.ok(ids.indexOf(highId) < ids.indexOf(lowId))
   assert.ok(!ids.includes(noneId))
   assert.equal(roster.find((r) => r.id === highId)?.hours, 3 * HOURS_PER_VOLUNTEER_VISIT)
 })
 
-test('reward tiers unlock by hours and record redemption exactly once', () => {
-  const id = makePerson('Redeemer')
+test('reward tiers unlock by hours and record redemption exactly once', async () => {
+  const id = await makePerson('Redeemer')
   const freeMembership = REWARD_TIERS[0]
 
-  assert.ok(getRewardStatuses(id, 0).every((r) => r.status === 'locked'))
+  assert.ok((await getRewardStatuses(id, 0)).every((r) => r.status === 'locked'))
 
-  const atTier = getRewardStatuses(id, freeMembership.hours)
+  const atTier = await getRewardStatuses(id, freeMembership.hours)
   assert.equal(atTier.find((r) => r.tier.id === freeMembership.id)?.status, 'available')
 
-  redeemReward({ personId: id, tierId: freeMembership.id, loggedBy: 'Lead' })
-  const after = getRewardStatuses(id, freeMembership.hours)
+  await redeemReward({ personId: id, tierId: freeMembership.id, loggedBy: 'Lead' })
+  const after = await getRewardStatuses(id, freeMembership.hours)
   assert.equal(after.find((r) => r.tier.id === freeMembership.id)?.status, 'redeemed')
 
   // UNIQUE(person_id, tier_id) backstops double-redemption at the DB layer.
-  assert.throws(() => redeemReward({ personId: id, tierId: freeMembership.id, loggedBy: 'Lead' }))
+  await assert.rejects(() => redeemReward({ personId: id, tierId: freeMembership.id, loggedBy: 'Lead' }))
 })

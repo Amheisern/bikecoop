@@ -47,11 +47,11 @@ function freshShiftDate(): string {
   return openDates[nextDateIndex++ % openDates.length]
 }
 
-function signUp(personId: number, shiftDate: string, roleId: string) {
-  return signUpForShift({ personId, shiftDate, roleId, loggedBy: 'Test Lead' })
+async function signUp(personId: number, shiftDate: string, roleId: string) {
+  return await signUpForShift({ personId, shiftDate, roleId, loggedBy: 'Test Lead' })
 }
 
-test('upcomingShiftDates lists only Mon, Tue and Thu for four weeks, from today', () => {
+test('upcomingShiftDates lists only Mon, Tue and Thu for four weeks, from today', async () => {
   // Monday Nov 2, 2026.
   assert.deepEqual(upcomingShiftDates('2026-11-02'), [
     '2026-11-02', '2026-11-03', '2026-11-05',
@@ -67,117 +67,118 @@ test('upcomingShiftDates lists only Mon, Tue and Thu for four weeks, from today'
   assert.ok(fromWednesday.every((date) => SHIFT_NIGHTS.includes(weekday(date))))
 })
 
-test('signing up for a role adds it to that night', () => {
+test('signing up for a role adds it to that night', async () => {
   const date = freshShiftDate()
-  const id = createPerson(personInput({ firstName: 'Mech', lastName: 'One' }))
-  assert.deepEqual(signUp(id, date, 'mechanic'), { ok: true })
-  const signups = getSignupsForDate(date).filter((signup) => signup.person_id === id)
+  const id = await createPerson(personInput({ firstName: 'Mech', lastName: 'One' }))
+  assert.deepEqual(await signUp(id, date, 'mechanic'), { ok: true })
+  const signups = (await getSignupsForDate(date)).filter((signup) => signup.person_id === id)
   assert.equal(signups.length, 1)
   assert.equal(signups[0].role_id, 'mechanic')
   assert.equal(signups[0].source, 'app')
   assert.equal(signups[0].logged_by, 'Test Lead')
 })
 
-test('only people marked Volunteer can sign up', () => {
+test('only people marked Volunteer can sign up', async () => {
   const date = freshShiftDate()
-  const id = createPerson(personInput({ firstName: 'Not', lastName: 'Volunteer', isStaff: false }))
-  const result = signUp(id, date, 'mechanic')
+  const id = await createPerson(personInput({ firstName: 'Not', lastName: 'Volunteer', isStaff: false }))
+  const result = await signUp(id, date, 'mechanic')
   assert.equal(result.ok, false)
 })
 
-test('the shift lead slot takes only people marked Shift lead, and only one per night', () => {
+test('the shift lead slot takes only people marked Shift lead, and only one per night', async () => {
   const date = freshShiftDate()
-  const plainVolunteer = createPerson(personInput({ firstName: 'Plain', lastName: 'Volunteer' }))
-  const leadA = createPerson(personInput({ firstName: 'Lead', lastName: 'A', isSiteLead: true }))
-  const leadB = createPerson(personInput({ firstName: 'Lead', lastName: 'B', isSiteLead: true }))
+  const plainVolunteer = await createPerson(personInput({ firstName: 'Plain', lastName: 'Volunteer' }))
+  const leadA = await createPerson(personInput({ firstName: 'Lead', lastName: 'A', isSiteLead: true }))
+  const leadB = await createPerson(personInput({ firstName: 'Lead', lastName: 'B', isSiteLead: true }))
 
-  assert.equal(signUp(plainVolunteer, date, 'shift_lead').ok, false)
-  assert.deepEqual(signUp(leadA, date, 'shift_lead'), { ok: true })
-  const second = signUp(leadB, date, 'shift_lead')
+  assert.equal((await signUp(plainVolunteer, date, 'shift_lead')).ok, false)
+  assert.deepEqual(await signUp(leadA, date, 'shift_lead'), { ok: true })
+  const second = await signUp(leadB, date, 'shift_lead')
   assert.equal(second.ok, false)
-  assert.equal(getSignupsForDate(date).filter((signup) => signup.role_id === 'shift_lead').length, 1)
+  assert.equal((await getSignupsForDate(date)).filter((signup) => signup.role_id === 'shift_lead').length, 1)
 })
 
-test('mechanic and greeter have no cap', () => {
+test('mechanic and greeter have no cap', async () => {
   const date = freshShiftDate()
   for (let index = 0; index < 5; index++) {
-    const id = createPerson(personInput({ firstName: 'Many', lastName: `Mech${index}` }))
-    assert.deepEqual(signUp(id, date, 'mechanic'), { ok: true })
-    assert.deepEqual(signUp(id, date, 'greeter'), { ok: true })
+    const id = await createPerson(personInput({ firstName: 'Many', lastName: `Mech${index}` }))
+    assert.deepEqual(await signUp(id, date, 'mechanic'), { ok: true })
+    assert.deepEqual(await signUp(id, date, 'greeter'), { ok: true })
   }
-  const signups = getSignupsForDate(date)
+  const signups = await getSignupsForDate(date)
   assert.equal(signups.filter((signup) => signup.role_id === 'mechanic').length, 5)
   assert.equal(signups.filter((signup) => signup.role_id === 'greeter').length, 5)
 })
 
-test('one person can hold two roles on a night, but not the same role twice', () => {
+test('one person can hold two roles on a night, but not the same role twice', async () => {
   const date = freshShiftDate()
-  const id = createPerson(personInput({ firstName: 'Two', lastName: 'Roles', isSiteLead: true }))
-  assert.deepEqual(signUp(id, date, 'shift_lead'), { ok: true })
-  assert.deepEqual(signUp(id, date, 'mechanic'), { ok: true })
-  assert.equal(signUp(id, date, 'mechanic').ok, false)
-  assert.equal(getSignupsForDate(date).filter((signup) => signup.person_id === id).length, 2)
+  const id = await createPerson(personInput({ firstName: 'Two', lastName: 'Roles', isSiteLead: true }))
+  assert.deepEqual(await signUp(id, date, 'shift_lead'), { ok: true })
+  assert.deepEqual(await signUp(id, date, 'mechanic'), { ok: true })
+  assert.equal((await signUp(id, date, 'mechanic')).ok, false)
+  assert.equal((await getSignupsForDate(date)).filter((signup) => signup.person_id === id).length, 2)
 })
 
-test('signups are refused for past nights, non-shift nights, nights past the window, and unknown roles', () => {
-  const id = createPerson(personInput({ firstName: 'Date', lastName: 'Rules' }))
+test('signups are refused for past nights, non-shift nights, nights past the window, and unknown roles', async () => {
+  const id = await createPerson(personInput({ firstName: 'Date', lastName: 'Rules' }))
   const today = todayISO()
 
   let pastShiftNight = addDaysISO(today, -1)
   while (!SHIFT_NIGHTS.includes(weekday(pastShiftNight))) pastShiftNight = addDaysISO(pastShiftNight, -1)
-  assert.equal(signUp(id, pastShiftNight, 'mechanic').ok, false)
+  assert.equal((await signUp(id, pastShiftNight, 'mechanic')).ok, false)
 
   let offNight = today
   while (SHIFT_NIGHTS.includes(weekday(offNight))) offNight = addDaysISO(offNight, 1)
-  assert.equal(signUp(id, offNight, 'mechanic').ok, false)
+  assert.equal((await signUp(id, offNight, 'mechanic')).ok, false)
 
   let beyondWindow = addDaysISO(today, SIGNUP_WEEKS_AHEAD * 7)
   while (!SHIFT_NIGHTS.includes(weekday(beyondWindow))) beyondWindow = addDaysISO(beyondWindow, 1)
-  assert.equal(signUp(id, beyondWindow, 'mechanic').ok, false)
+  assert.equal((await signUp(id, beyondWindow, 'mechanic')).ok, false)
 
-  assert.equal(signUp(id, freshShiftDate(), 'bouncer').ok, false)
+  assert.equal((await signUp(id, freshShiftDate(), 'bouncer')).ok, false)
 })
 
-test('banned volunteers cannot be signed up', () => {
+test('banned volunteers cannot be signed up', async () => {
   const date = freshShiftDate()
-  const id = createPerson(personInput({ firstName: 'Banned', lastName: 'Volunteer' }))
-  createFlag({ personId: id, level: 'banned', note: 'test', loggedBy: null })
-  assert.equal(signUp(id, date, 'mechanic').ok, false)
+  const id = await createPerson(personInput({ firstName: 'Banned', lastName: 'Volunteer' }))
+  await createFlag({ personId: id, level: 'banned', note: 'test', loggedBy: null })
+  assert.equal((await signUp(id, date, 'mechanic')).ok, false)
 })
 
-test('cancelling deletes the signup', () => {
+test('cancelling deletes the signup', async () => {
   const date = freshShiftDate()
-  const id = createPerson(personInput({ firstName: 'Cancel', lastName: 'Me' }))
-  signUp(id, date, 'greeter')
-  const signup = getSignupsForDate(date).find((row) => row.person_id === id)
+  const id = await createPerson(personInput({ firstName: 'Cancel', lastName: 'Me' }))
+  await signUp(id, date, 'greeter')
+  const signup = (await getSignupsForDate(date)).find((row) => row.person_id === id)
   assert.ok(signup)
-  assert.equal(cancelSignup(signup.id), true)
-  assert.equal(getSignupsForDate(date).some((row) => row.person_id === id), false)
-  assert.equal(cancelSignup(signup.id), false)
+  assert.equal(await cancelSignup(signup.id), true)
+  assert.equal((await getSignupsForDate(date)).some((row) => row.person_id === id), false)
+  assert.equal(await cancelSignup(signup.id), false)
 })
 
-test('expected volunteers: signed up tonight and not yet checked in as a volunteer', () => {
+test('expected volunteers: signed up tonight and not yet checked in as a volunteer', async () => {
   // Tonight may not be a shift night when tests run, so insert directly
   // rather than through signUpForShift's date rules.
   const today = todayISO()
-  const insert = db.prepare('INSERT INTO shift_signups (person_id, shift_date, role_id) VALUES (?, ?, ?)')
+  const insert = (personId: number, date: string, roleId: string) =>
+    db.run('INSERT INTO shift_signups (person_id, shift_date, role_id) VALUES (?, ?, ?)', personId, date, roleId)
 
-  const notHereYet = createPerson(personInput({ firstName: 'Expected', lastName: 'NotHere', isSiteLead: true }))
-  insert.run(notHereYet, today, 'mechanic')
-  insert.run(notHereYet, today, 'shift_lead')
+  const notHereYet = await createPerson(personInput({ firstName: 'Expected', lastName: 'NotHere', isSiteLead: true }))
+  await insert(notHereYet, today, 'mechanic')
+  await insert(notHereYet, today, 'shift_lead')
 
-  const hereAsGuest = createPerson(personInput({ firstName: 'Expected', lastName: 'Guest' }))
-  insert.run(hereAsGuest, today, 'greeter')
-  checkIn({ personId: hereAsGuest, isVolunteer: false, loggedBy: null })
+  const hereAsGuest = await createPerson(personInput({ firstName: 'Expected', lastName: 'Guest' }))
+  await insert(hereAsGuest, today, 'greeter')
+  await checkIn({ personId: hereAsGuest, isVolunteer: false, loggedBy: null })
 
-  const hereAsVolunteer = createPerson(personInput({ firstName: 'Expected', lastName: 'Arrived' }))
-  insert.run(hereAsVolunteer, today, 'greeter')
-  checkIn({ personId: hereAsVolunteer, isVolunteer: true, loggedBy: null })
+  const hereAsVolunteer = await createPerson(personInput({ firstName: 'Expected', lastName: 'Arrived' }))
+  await insert(hereAsVolunteer, today, 'greeter')
+  await checkIn({ personId: hereAsVolunteer, isVolunteer: true, loggedBy: null })
 
-  const otherNight = createPerson(personInput({ firstName: 'Expected', lastName: 'Tomorrow' }))
-  insert.run(otherNight, addDaysISO(today, 1), 'greeter')
+  const otherNight = await createPerson(personInput({ firstName: 'Expected', lastName: 'Tomorrow' }))
+  await insert(otherNight, addDaysISO(today, 1), 'greeter')
 
-  const expected = getExpectedVolunteers().filter((entry) =>
+  const expected = (await getExpectedVolunteers()).filter((entry) =>
     [notHereYet, hereAsGuest, hereAsVolunteer, otherNight].includes(entry.person_id)
   )
   assert.deepEqual(

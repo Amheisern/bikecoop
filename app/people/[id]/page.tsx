@@ -20,20 +20,24 @@ export default async function PersonProfilePage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const person = getPerson(Number(id))
+  const person = await getPerson(Number(id))
   if (!person) notFound()
 
-  const visits = getVisitsForPerson(person.id)
-  const volunteerHours = getVolunteerHours(person.id)
-  const footTraffic = getFootTraffic(person.id)
+  // Independent lookups run side by side (each is a round trip to the database).
+  const [visits, volunteerHours, footTraffic, activeFlags, membership, membershipHistory, notes] = await Promise.all([
+    getVisitsForPerson(person.id),
+    getVolunteerHours(person.id),
+    getFootTraffic(person.id),
+    getActiveFlags(person.id),
+    getMembershipStatus(person.id),
+    getMembershipsForPerson(person.id),
+    getNotesForPerson(person.id),
+  ])
+  const { status: membershipStatus, latest: latestMembership } = membership
   const achieved = new Set(getAchievedMilestones(volunteerHours))
-  const activeFlags = getActiveFlags(person.id)
   const bannedFlags = activeFlags.filter((f) => f.level === 'banned')
   const warningFlags = activeFlags.filter((f) => f.level !== 'banned')
-  const { status: membershipStatus, latest: latestMembership } = getMembershipStatus(person.id)
-  const membershipHistory = getMembershipsForPerson(person.id)
-  const notes = getNotesForPerson(person.id)
-  const rewardStatuses = getRewardStatuses(person.id, volunteerHours)
+  const rewardStatuses = await getRewardStatuses(person.id, volunteerHours)
   const today = todayISO()
   const defaultStartDate = today
   const defaultEndDate = oneYearFrom(today)

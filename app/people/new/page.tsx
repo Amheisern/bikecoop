@@ -9,7 +9,7 @@ export default function NewPersonPage() {
       <p className="muted">Saving also checks them in as a guest today.</p>
       <PersonForm action={createPersonAction} submitLabel="Add and check in" />
       <p>
-        <Link href="/guests">Cancel</Link>
+        <Link href="/checkin">Cancel</Link>
       </p>
     </main>
   )

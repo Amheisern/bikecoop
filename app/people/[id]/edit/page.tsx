@@ -9,7 +9,7 @@ export default async function EditPersonPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const person = getPerson(Number(id))
+  const person = await getPerson(Number(id))
   if (!person) notFound()
 
   const action = updatePersonAction.bind(null, person.id)
