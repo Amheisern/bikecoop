@@ -98,18 +98,21 @@ at `/people/[id]` and highlight the Check In tab. Layout (`app/front-desk.tsx`):
 search on the left; on the right, Signed up for tonight, then Volunteers here
 today, then Guests here today (`app/today-roster.tsx`, once per group).
 
-- **Search** finds everyone. Each result row's buttons:
-  - Marked Volunteer (`is_staff = 1`): **Guest** (a plain visit, e.g. working on
-    their own bike) and **Volunteer** (a 2.5-hour volunteer session, milestone
-    toast).
-  - Not marked Volunteer: one **Check In** (a plain visit).
-  - **Banned**: no buttons, only "See why", a link to their profile, where the
-    blocking modal must be dismissed first.
-  - Already here as a volunteer: no buttons ("Here as a volunteer"); changes
-    happen in today's lists. Already here as a guest: only **Volunteer**, for
-    Volunteer-marked people ("Here as a guest").
-  - The check-in form (`app/people/checkin-form.tsx`) stays mounted in every
-    non-banned row (mode `none` when there are no buttons) so a milestone
+- **Laid out for the front-desk iPad** (Nov 11, after Nick's feedback):
+  every search row is the same height. Name on the left, with tags under it
+  (BANNED / WATCH flag, "Here as guest" / "Here as volunteer"). Buttons are
+  all the same size (52px tall) and pinned to the right edge, no empty gaps
+  (`app/front-desk-checkin.tsx`). Two button styles only: white (Guest, See
+  why) and yellow (Volunteer).
+- **Search** finds everyone. Each row's buttons:
+  - Not here yet: **Guest** (a plain visit, e.g. working on their own bike),
+    plus **Volunteer** (a 2.5-hour session, milestone toast) for people marked
+    Volunteer (`is_staff = 1`).
+  - **Banned**: **See why**, a link to their profile, where the blocking modal
+    must be dismissed first.
+  - Here as a guest: Volunteer only, for Volunteer-marked people (others: no
+    buttons). Here as a volunteer: no buttons; changes happen in today's lists.
+  - `FrontDeskCheckIn` stays mounted in every non-banned row so a milestone
     celebration survives the buttons changing after a check-in.
 - Search is capped at `SEARCH_LIMIT` (10) with a "keep typing" hint when full.
   Flagged people show a ⛔/⚠️ marker (the flag level comes back with the search,
@@ -123,7 +126,7 @@ today, then Guests here today (`app/today-roster.tsx`, once per group).
   who haven't checked in as a volunteer yet, with their roles and a one-tap
   Check In (banned: "See why"). Hidden on non-shift nights with no signups.
 - **Today's lists**: everyone checked in today and not checked out, split into
-  Volunteers and Guests. Each tile has a move button with a confirmation: "Move
+  Volunteers and Guests, one tile per line (name left, buttons right). Each tile has a move button with a confirmation: "Move
   to Guests" (demote) or "Move to Volunteers" (promote; shown only for
   Volunteer-marked people). Promote/demote re-stamp `logged_by` with the current
   shift lead. Removing a tile offers "Check out, keep visit" (sets
