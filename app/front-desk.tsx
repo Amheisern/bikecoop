@@ -12,8 +12,8 @@ export const FRONT_DESK_PATH = '/checkin'
 
 // The front desk: one page for everyone (Michael's feedback, Nov 2026: one
 // tab, not separate Volunteers and Guests tabs), laid out for an iPad. Search
-// finds everyone; every row has the same two button slots, Guest and Volunteer
-// (Volunteer only for people marked Volunteer), so rows line up. Today's
+// finds everyone; every row's buttons are the same size and pinned to the
+// right edge: Guest, plus Volunteer for people marked Volunteer. Today's
 // check-ins show as two lists, Volunteers and Guests, with tonight's shift
 // signups above them.
 export async function FrontDesk({ query }: { query: string }) {
@@ -84,14 +84,19 @@ function SearchRow({ person, here }: { person: SearchResult; here: CheckedInPers
     <li className="person-row">
       <span className="name">
         <Link href={`/people/${person.id}`}>{name}</Link>
-        {person.flag_level && <FlagPill level={person.flag_level} />}
+        {(person.flag_level || hereAs) && (
+          <span className="row-tags">
+            {person.flag_level && <FlagPill level={person.flag_level} />}
+            {hereAs && <span className={`here-tag ${hereAs}`}>Here as {hereAs}</span>}
+          </span>
+        )}
       </span>
       {person.flag_level === 'banned' ? (
         // Banned people go through their profile, where the blocking modal
         // must be dismissed before check-in.
-        <div className="slot-actions">
-          <div className="slots">
-            <Link href={`/people/${person.id}`} className="btn-secondary slot slot-wide">
+        <div className="row-buttons-wrap">
+          <div className="row-buttons">
+            <Link href={`/people/${person.id}`} className="btn-secondary row-button">
               See why
             </Link>
           </div>
@@ -99,14 +104,13 @@ function SearchRow({ person, here }: { person: SearchResult; here: CheckedInPers
       ) : (
         // Not here yet: Guest, plus Volunteer for people marked Volunteer.
         // Here as a guest: a Volunteer-marked person can still switch to a
-        // volunteer session. Here as a volunteer: nothing to do here (changes
-        // happen in today's lists).
+        // volunteer session. Here as a volunteer: no buttons (changes happen
+        // in today's lists).
         <FrontDeskCheckIn
           personId={person.id}
           personName={name}
           guest={!hereAs}
           volunteer={isVolunteer && hereAs !== 'volunteer'}
-          note={hereAs ? `Here as ${hereAs}` : undefined}
         />
       )}
     </li>

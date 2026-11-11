@@ -98,20 +98,20 @@ at `/people/[id]` and highlight the Check In tab. Layout (`app/front-desk.tsx`):
 search on the left; on the right, Signed up for tonight, then Volunteers here
 today, then Guests here today (`app/today-roster.tsx`, once per group).
 
-- **Laid out for the front-desk iPad** (Nov 11): every search row is the same
-  height, name on the left (flag pill under it), and on the right the same two
-  button slots on every row, **Guest** then **Volunteer**
-  (`app/front-desk-checkin.tsx`), so buttons line up down the list. A row that
-  needs one button leaves the other slot empty. Buttons are 52px tall.
-- **Search** finds everyone. Each row's slots:
+- **Laid out for the front-desk iPad** (Nov 11, after Nick's feedback):
+  every search row is the same height. Name on the left, with tags under it
+  (BANNED / WATCH flag, "Here as guest" / "Here as volunteer"). Buttons are
+  all the same size (52px tall) and pinned to the right edge, no empty gaps
+  (`app/front-desk-checkin.tsx`). Two button styles only: white (Guest, See
+  why) and yellow (Volunteer).
+- **Search** finds everyone. Each row's buttons:
   - Not here yet: **Guest** (a plain visit, e.g. working on their own bike),
     plus **Volunteer** (a 2.5-hour session, milestone toast) for people marked
     Volunteer (`is_staff = 1`).
-  - **Banned**: "See why" across both slots, a link to their profile, where the
-    blocking modal must be dismissed first.
-  - Here as a guest: "Here as guest", plus Volunteer for Volunteer-marked
-    people. Here as a volunteer: "Here as volunteer", no buttons; changes
-    happen in today's lists.
+  - **Banned**: **See why**, a link to their profile, where the blocking modal
+    must be dismissed first.
+  - Here as a guest: Volunteer only, for Volunteer-marked people (others: no
+    buttons). Here as a volunteer: no buttons; changes happen in today's lists.
   - `FrontDeskCheckIn` stays mounted in every non-banned row so a milestone
     celebration survives the buttons changing after a check-in.
 - Search is capped at `SEARCH_LIMIT` (10) with a "keep typing" hint when full.
